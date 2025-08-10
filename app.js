@@ -442,4 +442,156 @@ async function deleteLedger(ledgerId) {
   if (!confirm('Are you sure you want to delete this ledger and all its transactions?')) return;
   try {
     showLoading();
-    const { error: txError } = await supabase.from('transactions')
+    const { error: txError } = await supabase.from('transactions').delete().eq('ledger_id', ledgerId);
+    if (txError) throw txError;
+    const { error } = await supabase.from('ledgers').delete().eq('id', ledgerId);
+    if (error) throw error;
+    showMessage('Success', 'Ledger deleted', 'success');
+    await loadUserData();
+    if (selectedLedgerId === ledgerId) {
+      selectedLedgerId = null;
+      renderTransactions([]);
+      selectedLedgerName.textContent = 'Select a ledger to view transactions';
+    }
+  } catch (err) {
+    console.error('Delete ledger error:', err);
+    showMessage('Error', 'Failed to delete ledger', 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+// TRANSACTIONS
+function openTransactionModal(mode = 'add', transaction = null) {
+  if (!selectedLedgerId) { showMessage('Error', 'Please select a ledger first', 'error'); return; }
+  if (mode === 'add') {
+    transactionModalTitle.textContent = 'Add New Transaction';
+    transactionDescriptionInput.value = '';
+    transactionCategoryInput.value = '';
+    transactionDebitInput.value = '';
+    transactionCreditInput.value = '';
+    confirmTransactionBtn.textContent = 'Add Transaction';
+    editingTransactionId = null;
+  } else {
+    transactionModalTitle.textContent = 'Edit Transaction';
+    transactionDescriptionInput.value = transaction.description || '';
+    transactionCategoryInput.value = transaction.category || '';
+    transactionDebitInput.value = transaction.debit || '';
+    transactionCreditInput.value = transaction.credit || '';
+    confirmTransactionBtn.textContent = 'Update Transaction';
+    editingTransactionId = transaction.id;
+  }
+  showModal(transactionModal);
+}
+
+async function handleTransactionSubmit() {
+  const description = transactionDescriptionInput.value.trim();
+  const category = transactionCategoryInput.value.trim();
+  const debit = parseFloat(transactionDebitInput.value) || 0;
+  const credit = parseFloat(transactionCreditInput.value) || 0;
+
+  if (!description) { showMessage('Error', 'Description cannot be empty', 'error'); return; }
+  if (debit === 0 && credit === 0) { showMessage('Error', 'Enter debit or credit amount', 'error'); return; }
+
+  try {
+    showLoading();
+    if (confirmTransactionBtn.textContent === 'Add Transaction') {
+      const { error } = await supabase.from('transactions').insert([{
+        ledger_id: selectedLedgerId,
+        description,
+        category,
+        debit,
+        credit
+      }]);
+      if (error) throw error;
+      showMessage('Success', 'Transaction added', 'success');
+    } else {
+      if (!editingTransactionId) throw new Error('No transaction selected for update');
+      const { error } = await supabase.from('transactions').update({
+        description, category, debit, credit, updated_at: new Date().toISOString()
+      }).eq('id', editingTransactionId);
+      if (error) throw error;
+      showMessage('Success', 'Transaction updated', 'success');
+    }
+    hideModal(transactionModal);
+    await loadTransactions(selectedLedgerId);
+  } catch (err) {
+    console.error('Transaction error:', err);
+    showMessage('Error', err.message || 'Failed to save transaction', 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+async function deleteTransaction(transactionId) {
+  if (!confirm('Are you sure you want to delete this transaction?')) return;
+  try {
+    showLoading();
+    const { error } = await supabase.from('transactions').delete().eq('id', transactionId);
+    if (error) throw error;
+    showMessage('Success', 'Transaction deleted', 'success');
+    await loadTransactions(selectedLedgerId);
+  } catch (err) {
+    console.error('Delete transaction error:', err);
+    showMessage('Error', 'Failed to delete transaction', 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+async function suggestCategory() {
+  const description = transactionDescriptionInput.value.trim();
+  if (!description) { showMessage('Error', 'Enter description first', 'error'); return; }
+  try {
+    showLoading();
+    const suggestions = {
+      food: ['restaurant', 'groceries', 'takeout', 'dinner', 'lunch'],
+      transport: ['gas', 'uber', 'taxi', 'bus', 'train', 'metro'],
+      bills: ['electricity', 'water', 'internet', 'phone', 'rent'],
+      shopping: ['clothes', 'electronics', 'grocery', 'store'],
+      entertainment: ['movie', 'concert', 'game', 'netflix']
+    };
+    let suggested = 'Other';
+    const d = description.toLowerCase();
+    for (const [cat, keywords] of Object.entries(suggestions)) {
+      if (keywords.some(k => d.includes(k))) { suggested = cat; break; }
+    }
+    transactionCategoryInput.value = suggested.charAt(0).toUpperCase() + suggested.slice(1);
+  } catch (err) {
+    console.error('Category suggestion error:', err);
+    showMessage('Error', 'Failed to suggest category', 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+// HELPERS
+function showModal(modal) { modal.classList.remove('hidden'); }
+function hideModal(modal) { modal.classList.add('hidden'); }
+function showMessage(title, message, type = 'error') {
+  messageModalTitle.textContent = title;
+  messageModalContent.textContent = message;
+  messageModalContent.className = `mb-4 ${type === 'error' ? 'text-red-600' : 'text-green-600'}`;
+  showModal(messageModal);
+}
+function showAuthModal() { authModal.classList.remove('hidden'); clearAuthForm(); clearAuthErrors(); }
+function hideAuthModal() { authModal.classList.add('hidden'); }
+function showAuthLoading() { authSubmitBtn.disabled = true; authSpinner.classList.remove('hidden'); authBtnText.textContent = isRegisterMode ? 'Registering...' : 'Logging in...'; }
+function hideAuthLoading() { authSubmitBtn.disabled = false; authSpinner.classList.add('hidden'); authBtnText.textContent = isRegisterMode ? 'Register' : 'Login'; }
+function showAuthError(message) { authStatusMessage.textContent = message; authStatusMessage.classList.remove('hidden'); }
+function clearAuthErrors() { authStatusMessage.textContent = ''; authStatusMessage.classList.add('hidden'); }
+function clearAuthForm() { authForm.reset(); }
+function showLoading() { loadingSpinner.classList.remove('hidden'); }
+function hideLoading() { loadingSpinner.classList.add('hidden'); }
+function handleNetworkChange() { if (!navigator.onLine) showMessage('Offline', 'You are currently offline. Some features may not work.', 'warning'); }
+function escapeHtml(s) { return s ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])) : ''; }
+
+// Debugging listener
+supabase.auth.onAuthStateChange((event, session) => {
+  console.log('Auth state changed:', event, session);
+  if (session && session.user) {
+    currentUser = session.user;
+  } else {
+    currentUser = null;
+  }
+});

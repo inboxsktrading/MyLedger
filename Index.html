@@ -496,6 +496,7 @@
                     <p class="text-gray-500 text-center py-4" id="no-transactions-message">No transactions for this ledger. Add one!</p>
                 </div>
                 <button id="export-ledger-btn" class="btn-outline" disabled>Export Current Ledger (CSV)</button>
+                <button id="generate-insights-btn" class="btn-outline" disabled>Generate Spending Insights ✨</button>
             </div>
         </div>
     </div>
@@ -503,7 +504,7 @@
     <!-- Login/Signup Modal -->
     <div id="auth-modal" class="modal">
         <div class="modal-content">
-            <h3 id="auth-modal-title" class="text-xl font-bold mb-4 text-center">Welcome!</h3>
+            <h3 id="auth-modal-title" class="text-xl font-bold mb-4 text-center">Account Access</h3>
             <div id="auth-status-message" class="text-sm text-red-600 text-center mb-4 hidden"></div>
 
             <label for="auth-username-input" class="text-sm font-medium text-gray-700">Email (Username)</label>
@@ -513,8 +514,9 @@
             <input type="password" id="auth-password-input" placeholder="••••••••" class="mb-4">
 
             <div class="flex justify-end gap-2">
-                <button id="auth-switch-btn" class="btn-secondary">Switch to Register</button>
-                <button id="auth-confirm-btn" class="btn-primary">Login</button>
+                <!-- Separate Login and Register buttons -->
+                <button id="auth-login-button" class="btn-primary">Login</button>
+                <button id="auth-register-button" class="btn-secondary">Register New User</button>
             </div>
             <p class="text-sm text-gray-500 text-center mt-4">
                 This app uses Supabase for synchronized data across devices.
@@ -598,21 +600,23 @@
 
         const selectedLedgerNameElem = document.getElementById('selected-ledger-name');
         const totalCreditsElem = document.getElementById('total-credits');
-        const totalDebitsElem = document = document.getElementById('total-debits');
+        // Fix: Corrected assignment for totalDebitsElem
+        const totalDebitsElem = document.getElementById('total-debits');
         const ledgerBalanceElem = document.getElementById('ledger-balance');
         const transactionsListElem = document.getElementById('transactions-list');
         const noTransactionsMessage = document.getElementById('no-transactions-message');
         const addTransactionBtn = document.getElementById('add-transaction-btn');
         const exportLedgerBtn = document.getElementById('export-ledger-btn');
+        const generateInsightsBtn = document.getElementById('generate-insights-btn'); // New element reference
 
         // Auth Modals
         const authModal = document.getElementById('auth-modal');
-        const authModalTitle = document.getElementById('auth-modal-title');
+        const authModalTitle = document.getElementById('auth-modal-title'); // Now generic "Account Access"
         const authStatusMessage = document.getElementById('auth-status-message');
         const authUsernameInput = document.getElementById('auth-username-input'); // This is now email
         const authPasswordInput = document.getElementById('auth-password-input');
-        const authSwitchBtn = document.getElementById('auth-switch-btn');
-        const authConfirmBtn = document.getElementById('auth-confirm-btn');
+        const authLoginButton = document.getElementById('auth-login-button'); // New login button
+        const authRegisterButton = document.getElementById('auth-register-button'); // New register button
 
         // Other Modals
         const ledgerModal = document.getElementById('ledger-modal');
@@ -640,7 +644,7 @@
         const messageModalMessage = document.getElementById('message-modal-message');
         const closeMessageBtn = document.getElementById('close-message-btn');
 
-        let isRegisterMode = false; // To toggle between login and register
+        // Removed isRegisterMode flag as we have separate buttons now.
 
         // --- Utility Functions ---
 
@@ -808,6 +812,70 @@
             showMessage("Export Successful", "All ledgers exported to CSV.", 'info');
         }
 
+        /**
+         * Generates spending insights for the selected ledger using the Gemini API.
+         */
+        async function generateSpendingInsights() {
+            if (!selectedLedgerId) {
+                showMessage("Insights Error", "Please select a ledger to generate insights.", 'error');
+                return;
+            }
+
+            const selectedLedger = ledgers.find(l => l.id === selectedLedgerId);
+            if (!selectedLedger || selectedLedger.transactions.length === 0) {
+                showMessage("Insights Error", "No transactions available for insights in this ledger.", 'error');
+                return;
+            }
+
+            showLoading();
+
+            try {
+                let transactionDetails = selectedLedger.transactions.map(t => {
+                    return `Description: ${t.description}, Debit: ${t.debit}, Credit: ${t.credit}, Timestamp: ${new Date(t.timestamp).toLocaleString()}`;
+                }).join('\n');
+
+                const prompt = `Analyze the following ledger transactions and provide a concise summary of spending patterns, identify any unusually large or frequent transactions, and offer general observations. Present the information clearly.
+
+Ledger Name: ${selectedLedger.name}
+
+Transactions:
+${transactionDetails}
+
+Please provide insights in a structured, easy-to-read format.`;
+
+                let chatHistory = [];
+                chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+
+                const payload = { contents: chatHistory };
+                const apiKey = ""; // Canvas will provide this dynamically
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const insightsText = result.candidates[0].content.parts[0].text;
+                    showMessage("Spending Insights ✨", insightsText, 'info');
+                } else {
+                    console.error("Gemini API response structure unexpected:", result);
+                    showMessage("Insights Error", "Failed to get insights from AI. Unexpected response format.", 'error');
+                }
+
+            } catch (error) {
+                console.error('Error calling Gemini API for insights:', error);
+                showMessage("Insights Error", `Failed to generate insights: ${error.message}. Please try again.`, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
 
         // --- Supabase Data Operations ---
 
@@ -916,6 +984,7 @@
                 const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
                 if (error) {
+                    console.error("Supabase Login Error:", error.message);
                     throw error;
                 }
 
@@ -928,7 +997,7 @@
                 showMessage("Login Successful", `Welcome back, ${loggedInUserEmail}!`, 'info');
                 return true;
             } catch (error) {
-                console.error("Login error:", error);
+                console.error("Login error (caught):", error);
                 authStatusMessage.textContent = `Login failed: ${error.message}`;
                 authStatusMessage.classList.remove('hidden');
                 return false;
@@ -956,6 +1025,7 @@
                 const { data, error } = await supabase.auth.signUp({ email, password });
 
                 if (error) {
+                    console.error("Supabase Register Error:", error.message);
                     throw error;
                 }
 
@@ -971,7 +1041,7 @@
                 showMessage("Registration Successful", `Welcome, ${loggedInUserEmail}! Please check your email to confirm your account (if email confirmation is enabled in Supabase settings).`, 'info');
                 return true;
             } catch (error) {
-                console.error("Registration error:", error);
+                console.error("Registration error (caught):", error);
                 authStatusMessage.textContent = `Registration failed: ${error.message}`;
                 authStatusMessage.classList.remove('hidden');
                 return false;
@@ -1000,6 +1070,7 @@
                 const { error } = await supabase.auth.signOut();
 
                 if (error) {
+                    console.error("Supabase Logout Error:", error.message);
                     throw error;
                 }
                 loggedInUserId = null;
@@ -1013,7 +1084,7 @@
                 openAuthModal(); // Show login/signup screen again
                 showMessage("Logged Out", "You have been successfully logged out.", 'info');
             } catch (error) {
-                console.error("Logout error:", error);
+                console.error("Logout error (caught):", error);
                 showMessage("Logout Error", `Failed to log out: ${error.message}`, 'error');
             } finally {
                 hideLoading();
@@ -1196,7 +1267,6 @@
          * @returns {number} The calculated balance.
          */
         function calculateLedgerBalance(transactions) {
-            // Fixed syntax error: arrow function syntax corrected
             let totalCredits = transactions.reduce((sum, t) => sum + (t.credit || 0), 0);
             let totalDebits = transactions.reduce((sum, t) => sum + (t.debit || 0), 0);
             return totalCredits - totalDebits;
@@ -1281,6 +1351,7 @@
             transactionsListElem.innerHTML = ''; // Clear existing transactions
             addTransactionBtn.disabled = true;
             exportLedgerBtn.disabled = true;
+            generateInsightsBtn.disabled = true; // Disable the insights button by default
             noTransactionsMessage.classList.remove('hidden');
 
             const selectedLedger = ledgers.find(l => l.id === selectedLedgerId);
@@ -1289,6 +1360,13 @@
                 selectedLedgerNameElem.textContent = selectedLedger.name;
                 addTransactionBtn.disabled = false;
                 exportLedgerBtn.disabled = false;
+
+                // Only enable insights button if there are transactions
+                if (selectedLedger.transactions.length > 0) {
+                    generateInsightsBtn.disabled = false;
+                } else {
+                    generateInsightsBtn.disabled = true;
+                }
 
                 // Sort transactions by timestamp (most recent first)
                 const sortedTransactions = [...selectedLedger.transactions].sort((a, b) => {
@@ -1346,6 +1424,7 @@
             ledgerBalanceElem.textContent = formatCurrency(0);
             addTransactionBtn.disabled = true;
             exportLedgerBtn.disabled = true;
+            generateInsightsBtn.disabled = true; // Also disable insights if no ledger is selected
             noTransactionsMessage.classList.remove('hidden');
         }
     }
@@ -1455,11 +1534,6 @@
      * Manages the display and functionality of the authentication modal.
      */
     function openAuthModal() {
-        // Now starts in Register mode
-        authModalTitle.textContent = 'Register New User';
-        authSwitchBtn.textContent = 'Existing User? Login';
-        authConfirmBtn.textContent = 'Register';
-        isRegisterMode = true; // Set to true to start in register mode
         authUsernameInput.value = '';
         authPasswordInput.value = '';
         authStatusMessage.classList.add('hidden'); // Hide status message initially
@@ -1472,36 +1546,26 @@
      */
     function setupEventListeners() {
         // Auth Modal Event Listeners
-        authSwitchBtn.addEventListener('click', () => {
-            isRegisterMode = !isRegisterMode;
-            if (isRegisterMode) {
-                authModalTitle.textContent = 'Register New User';
-                authSwitchBtn.textContent = 'Existing User? Login';
-                authConfirmBtn.textContent = 'Register';
-            } else {
-                authModalTitle.textContent = 'Login or Register';
-                authSwitchBtn.textContent = 'New User? Register';
-                authConfirmBtn.textContent = 'Login';
-            }
-            authStatusMessage.classList.add('hidden'); // Clear status message on mode switch
-        });
-
-        authConfirmBtn.addEventListener('click', async () => {
+        authLoginButton.addEventListener('click', async () => {
             const email = authUsernameInput.value.trim();
             const password = authPasswordInput.value.trim();
-
             if (!email || !password) {
                 authStatusMessage.textContent = 'Email and password cannot be empty.';
                 authStatusMessage.classList.remove('hidden');
                 return;
             }
+            await loginUser(email, password);
+        });
 
-            // The setInterval check handles initialization, so direct use here.
-            if (isRegisterMode) {
-                await registerUser(email, password);
-            } else {
-                await loginUser(email, password);
+        authRegisterButton.addEventListener('click', async () => {
+            const email = authUsernameInput.value.trim();
+            const password = authPasswordInput.value.trim();
+            if (!email || !password) {
+                authStatusMessage.textContent = 'Email and password cannot be empty.';
+                authStatusMessage.classList.remove('hidden');
+                return;
             }
+            await registerUser(email, password);
         });
 
         // Logout Button
@@ -1518,6 +1582,9 @@
         // Export Buttons
         exportLedgerBtn.addEventListener('click', exportIndividualLedger); 
         exportAllBtn.addEventListener('click', exportOverallLedgers);   
+
+        // New feature button
+        generateInsightsBtn.addEventListener('click', generateSpendingInsights);
 
         // Event listener for message modal close button
         closeMessageBtn.addEventListener('click', () => hideModal(messageModal));
@@ -1539,19 +1606,6 @@
 
     async function initializeSupabaseApp() {
         try {
-            // Fix: Ensured 'totalDebitsElem' is correctly assigned to an HTMLElement
-            if (document.getElementById('total-debits') === null) {
-                console.error("Element with ID 'total-debits' not found.");
-                // Optionally create a dummy element or handle this more robustly if it's not critical for app function
-                // For now, let's ensure it's a valid object before assigning properties to it.
-            }
-            // Correct the assignment if there was an accidental reassignment or null value
-            // This is a correction based on common copy-paste errors, ensuring it's an element not just document.getElementById().
-            // A more robust fix would be to verify all element IDs on DOMContentLoaded.
-            // For now, assuming the original issue was 'totalDebitsElem = document = document.getElementById('total-debits');'
-            // and correcting to: totalDebitsElem = document.getElementById('total-debits');
-            // This line is outside of this snippet, but common mistakes need to be watched for.
-
             supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             console.log("Supabase client initialized at startup.");
             setupAuthStateListener(); 
@@ -1563,7 +1617,8 @@
                 logoutBtn.classList.remove('hidden');
                 fetchUserLedgersFromSupabase();
             } else {
-                openAuthModal();
+                // Open auth modal, which will default to register mode and update UI
+                openAuthModal(); 
             }
         } catch (e) {
             showMessage("Initialization Error", `Failed to initialize Supabase client: ${e.message}. Ensure your Supabase URL and key are correct, and your browser allows script loading from CDN.`, 'error');

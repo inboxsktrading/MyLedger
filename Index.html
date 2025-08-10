@@ -571,11 +571,9 @@
     <!-- Supabase CDN for client library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-        // --- Supabase Configuration (Replace with your actual project details) ---
-        // IMPORTANT: Replace 'YOUR_ACTUAL_SUPABASE_ANON_PUBLIC_KEY' with your real Supabase Anon Key.
-        // You can find these in your Supabase Project Settings -> API.
+        // --- Supabase Configuration ---
         const SUPABASE_URL = 'https://vemubkmthzjjzpgbseox.supabase.co'; 
-        const SUPABASE_ANON_KEY = 'YOUR_ACTUAL_SUPABASE_ANON_PUBLIC_KEY'; // <--- PASTE YOUR ANON PUBLIC KEY HERE
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZlbXVia210aHpqanpwZ2JzZW94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4MDY4NjgsImV4cCI6MjA3MDM4Mjg2OH0.-EqAxZq0xbkgsZnUWpvuPjpPdmhj13KTqvAZgMVqEuQ'; // Your actual key
 
         // Initialize Supabase client globally
         let supabase = null; 
@@ -611,7 +609,6 @@
         const authModal = document.getElementById('auth-modal');
         const authModalTitle = document.getElementById('auth-modal-title');
         const authStatusMessage = document.getElementById('auth-status-message');
-        // Removed supabaseUrlInput and supabaseAnonKeyInput as they are now hardcoded
         const authUsernameInput = document.getElementById('auth-username-input'); // This is now email
         const authPasswordInput = document.getElementById('auth-password-input');
         const authSwitchBtn = document.getElementById('auth-switch-btn');
@@ -1497,19 +1494,7 @@
                 return;
             }
 
-            // Initialize Supabase client if not already (redundant but safe check)
-            if (!supabase) {
-                try {
-                    supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-                    console.log("Supabase client re-initialized in auth click.");
-                    setupAuthStateListener(); 
-                } catch (e) {
-                    showMessage("Initialization Error", "Failed to initialize Supabase client. Check URL/Key format in the code.", 'error');
-                    console.error("Supabase init error:", e);
-                    return;
-                }
-            }
-
+            // The setInterval check handles initialization, so direct use here.
             if (isRegisterMode) {
                 await registerUser(email, password);
             } else {
@@ -1529,8 +1514,8 @@
         cancelTransactionBtn.addEventListener('click', () => hideModal(transactionModal));
 
         // Export Buttons
-        exportLedgerBtn.addEventListener('click', exportIndividualLedger); // This was missing
-        exportAllBtn.addEventListener('click', exportOverallLedgers);   // This was missing
+        exportLedgerBtn.addEventListener('click', exportIndividualLedger); 
+        exportAllBtn.addEventListener('click', exportOverallLedgers);   
 
         // Event listener for message modal close button
         closeMessageBtn.addEventListener('click', () => hideModal(messageModal));
@@ -1538,35 +1523,41 @@
 
     // --- Initial App Load ---
     document.addEventListener('DOMContentLoaded', () => {
-        // Initialize Supabase client immediately when DOM is loaded using hardcoded keys
-        try {
-            // Check if Supabase object is available before trying to create a client
-            if (typeof Supabase === 'undefined' || !Supabase.createClient) {
-                throw new Error("Supabase library not loaded correctly. Please check CDN script.");
+        // Use setInterval to poll for Supabase library readiness
+        const checkSupabaseReady = setInterval(() => {
+            if (typeof Supabase !== 'undefined' && Supabase.createClient) {
+                clearInterval(checkSupabaseReady); // Stop checking once ready
+                console.log("Supabase library detected and ready.");
+                initializeSupabaseApp();
+            } else {
+                console.log("Waiting for Supabase library to load...");
             }
+        }, 100); // Check every 100ms
+    });
+
+    async function initializeSupabaseApp() {
+        try {
             supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             console.log("Supabase client initialized at startup.");
-            setupAuthStateListener(); // Set up listener
-            // Check current auth state to see if a user is already logged in
-            supabase.auth.getSession().then(({ data: { session } }) => {
-                if (session) {
-                    loggedInUserId = session.user.id;
-                    loggedInUserEmail = session.user.email;
-                    mainAppContent.classList.remove('hidden');
-                    logoutBtn.classList.remove('hidden');
-                    fetchUserLedgersFromSupabase();
-                } else {
-                    openAuthModal(); // Show auth modal if no session
-                }
-            });
+            setupAuthStateListener(); 
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                loggedInUserId = session.user.id;
+                loggedInUserEmail = session.user.email;
+                mainAppContent.classList.remove('hidden');
+                logoutBtn.classList.remove('hidden');
+                fetchUserLedgersFromSupabase();
+            } else {
+                openAuthModal();
+            }
         } catch (e) {
-            showMessage("Initialization Error", `Failed to initialize Supabase client: ${e.message}. Check your URL and Key in the code.`, 'error');
+            showMessage("Initialization Error", `Failed to initialize Supabase client: ${e.message}. Ensure your Supabase URL and key are correct, and your browser allows script loading from CDN.`, 'error');
             console.error("Supabase init error:", e);
-            openAuthModal(); // Always show modal on init failure
+            openAuthModal();
         }
 
-        setupEventListeners(); // Setup other event listeners
-    });
+        setupEventListeners();
+    }
 
 </script>
 </body>

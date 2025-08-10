@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ledger Manager (Supabase)</title>
-    <!-- Supabase CDN for client library -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         /* Base styles */
         body {
@@ -519,8 +517,7 @@
                 <button id="auth-confirm-btn" class="btn-primary">Login</button>
             </div>
             <p class="text-sm text-gray-500 text-center mt-4">
-                This app now uses Supabase for synchronized data across devices.<br>
-                **Ensure you set up your Supabase project (URL/Key) and RLS policies correctly.**
+                This app uses Supabase for synchronized data across devices.
             </p>
         </div>
     </div>
@@ -571,12 +568,14 @@
         </div>
     </div>
 
+    <!-- Supabase CDN for client library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
         // --- Supabase Configuration (Replace with your actual project details) ---
-        // IMPORTANT: Replace 'YOUR_SUPABASE_URL' and 'YOUR_SUPABASE_ANON_KEY' with your keys
+        // IMPORTANT: Replace 'YOUR_ACTUAL_SUPABASE_ANON_PUBLIC_KEY' with your real Supabase Anon Key.
         // You can find these in your Supabase Project Settings -> API.
-        const SUPABASE_URL = 'YOUR_SUPABASE_URL'; 
-        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        const SUPABASE_URL = 'https://vemubkmthzjjzpgbseox.supabase.co'; 
+        const SUPABASE_ANON_KEY = 'YOUR_ACTUAL_SUPABASE_ANON_PUBLIC_KEY'; // <--- PASTE YOUR ANON PUBLIC KEY HERE
 
         // Initialize Supabase client globally
         let supabase = null; 
@@ -612,6 +611,7 @@
         const authModal = document.getElementById('auth-modal');
         const authModalTitle = document.getElementById('auth-modal-title');
         const authStatusMessage = document.getElementById('auth-status-message');
+        // Removed supabaseUrlInput and supabaseAnonKeyInput as they are now hardcoded
         const authUsernameInput = document.getElementById('auth-username-input'); // This is now email
         const authPasswordInput = document.getElementById('auth-password-input');
         const authSwitchBtn = document.getElementById('auth-switch-btn');
@@ -754,16 +754,61 @@
         }
 
         /**
-         * Generates a unique ID (simple UUID-like for offline use, now deprecated for Supabase).
+         * Generates a unique ID (simple UUID-like for client-side use).
          * @returns {string} A unique ID string.
          */
         function generateUniqueId() {
-            // This is largely symbolic now that Supabase generates IDs for main rows
-            // but still useful for nested ledger/transaction IDs for client-side tracking.
             return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
                 var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
                 return v.toString(16);
             });
+        }
+
+        /**
+         * Exports the currently selected ledger's transactions to a CSV file.
+         */
+        function exportIndividualLedger() {
+            if (!selectedLedgerId) {
+                showMessage("Export Error", "Please select a ledger to export.", 'error');
+                return;
+            }
+            const selectedLedger = ledgers.find(l => l.id === selectedLedgerId);
+            if (!selectedLedger || selectedLedger.transactions.length === 0) {
+                showMessage("Export Error", "No transactions to export for this ledger.", 'error');
+                return;
+            }
+
+            let csvContent = "Description,Debit,Credit,Timestamp\n";
+            selectedLedger.transactions.forEach(t => {
+                csvContent += `${JSON.stringify(t.description || '')},${t.debit || 0},${t.credit || 0},${t.timestamp || ''}\n`;
+            });
+
+            downloadCSV(csvContent, `${selectedLedger.name.replace(/[^a-z0-9]/gi, '_')}_transactions.csv`);
+            showMessage("Export Successful", "Current ledger exported to CSV.", 'info');
+        }
+
+        /**
+         * Exports all ledgers and their transactions to a single CSV file.
+         */
+        function exportOverallLedgers() {
+            if (ledgers.length === 0) {
+                showMessage("Export Error", "No ledgers to export.", 'error');
+                return;
+            }
+
+            let csvContent = "Ledger Name,Description,Debit,Credit,Timestamp\n";
+            ledgers.forEach(ledger => {
+                if (ledger.transactions.length === 0) {
+                    csvContent += `${JSON.stringify(ledger.name || '')},,,,\n`; // Include ledger name even if no transactions
+                } else {
+                    ledger.transactions.forEach(t => {
+                        csvContent += `${JSON.stringify(ledger.name || '')},${JSON.stringify(t.description || '')},${t.debit || 0},${t.credit || 0},${t.timestamp || ''}\n`;
+                    });
+                }
+            });
+
+            downloadCSV(csvContent, `all_ledgers_export_${new Date().toISOString().slice(0,10)}.csv`);
+            showMessage("Export Successful", "All ledgers exported to CSV.", 'info');
         }
 
 
@@ -782,8 +827,8 @@
             try {
                 // Check if a record for this user_id already exists
                 const { data: existingData, error: fetchError } = await supabase
-                    .from('user_data') // Using 'user_data' as per simplified instructions
-                    .select('id, ledgers') // Changed to 'ledgers' column
+                    .from('user_data') // Use 'user_data' table
+                    .select('id, ledgers') // Select 'ledgers' column
                     .eq('user_id', loggedInUserId)
                     .single();
 
@@ -794,15 +839,15 @@
                 if (existingData) {
                     // Update existing record
                     const { error: updateError } = await supabase
-                        .from('user_data') // Using 'user_data'
+                        .from('user_data') // Use 'user_data' table
                         .update({ ledgers: ledgers }) // Update 'ledgers' column
                         .eq('user_id', loggedInUserId);
                     if (updateError) throw updateError;
                     console.log("Ledgers updated successfully in Supabase.");
                 } else {
-                    // Insert new record
+                    // Insert new record (for new users who just added their first ledger)
                     const { error: insertError } = await supabase
-                        .from('user_data') // Using 'user_data'
+                        .from('user_data') // Use 'user_data' table
                         .insert([{ user_id: loggedInUserId, ledgers: ledgers }]); // Insert into 'ledgers' column
                     if (insertError) throw insertError;
                     console.log("New user ledger record created successfully in Supabase.");
@@ -826,7 +871,7 @@
             showLoading();
             try {
                 const { data, error } = await supabase
-                    .from('user_data') // Using 'user_data'
+                    .from('user_data') // Use 'user_data' table
                     .select('ledgers') // Select 'ledgers' column
                     .eq('user_id', loggedInUserId)
                     .single(); // Expecting only one row per user_id
@@ -864,11 +909,13 @@
             showLoading();
             authStatusMessage.classList.add('hidden');
             try {
-                // Supabase client MUST be initialized before authentication
+                // Initialize Supabase client if not already
                 if (!supabase) {
-                    showMessage("Configuration Error", "Supabase client not initialized. Check your URL and Key.", 'error');
-                    return false;
+                    supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                    console.log("Supabase client initialized.");
+                    setupAuthStateListener(); // Setup listener after client is created
                 }
+
                 const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
                 if (error) {
@@ -902,11 +949,13 @@
             showLoading();
             authStatusMessage.classList.add('hidden');
             try {
-                // Supabase client MUST be initialized before authentication
+                // Initialize Supabase client if not already
                 if (!supabase) {
-                    showMessage("Configuration Error", "Supabase client not initialized. Check your URL and Key.", 'error');
-                    return false;
+                    supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                    console.log("Supabase client initialized.");
+                    setupAuthStateListener(); // Setup listener after client is created
                 }
+
                 const { data, error } = await supabase.auth.signUp({ email, password });
 
                 if (error) {
@@ -1276,63 +1325,249 @@
                             <div class="flex space-x-2 ml-4">
                                 <button class="action-button rename" data-transaction-id="${transaction.id}" title="Edit Transaction">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                                </button>
-                                <button class="action-button delete" data-transaction-id="${transaction.id}" title="Delete Transaction">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                </button>
-                            </div>
-                        `;
-                        transactionsListElem.appendChild(transactionDiv);
+                            </button>
+                            <button class="action-button delete" data-transaction-id="${transaction.id}" title="Delete Transaction">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
+                    `;
+                    transactionsListElem.appendChild(transactionDiv);
 
-                        transactionDiv.querySelector('.rename.action-button').addEventListener('click', () => openTransactionModal('edit', selectedLedger.id, transaction.id, transaction));
-                        transactionDiv.querySelector('.delete.action-button').addEventListener('click', () => deleteTransactionLocally(selectedLedger.id, transaction.id));
-                    });
+                    transactionDiv.querySelector('.rename.action-button').addEventListener('click', () => openTransactionModal('edit', selectedLedger.id, transaction.id, transaction));
+                    transactionDiv.querySelector('.delete.action-button').addEventListener('click', () => deleteTransactionLocally(selectedLedger.id, transaction.id));
+                });
 
-                    totalCreditsElem.textContent = formatCurrency(totalCredits);
-                    totalDebitsElem.textContent = formatCurrency(totalDebits);
-                    ledgerBalanceElem.textContent = formatCurrency(calculateLedgerBalance(selectedLedger.transactions));
-                }
-            } else {
-                selectedLedgerNameElem.textContent = "Select a Ledger to View Transactions";
-                totalCreditsElem.textContent = formatCurrency(0);
-                totalDebitsElem.textContent = formatCurrency(0);
-                ledgerBalanceElem.textContent = formatCurrency(0);
-                addTransactionBtn.disabled = true;
-                exportLedgerBtn.disabled = true;
-                noTransactionsMessage.classList.remove('hidden');
+                totalCreditsElem.textContent = formatCurrency(totalCredits);
+                totalDebitsElem.textContent = formatCurrency(totalDebits);
+                ledgerBalanceElem.textContent = formatCurrency(calculateLedgerBalance(selectedLedger.transactions));
             }
+        } else {
+            selectedLedgerNameElem.textContent = "Select a Ledger to View Transactions";
+            totalCreditsElem.textContent = formatCurrency(0);
+            totalDebitsElem.textContent = formatCurrency(0);
+            ledgerBalanceElem.textContent = formatCurrency(0);
+            addTransactionBtn.disabled = true;
+            exportLedgerBtn.disabled = true;
+            noTransactionsMessage.classList.remove('hidden');
+        }
+    }
+
+    /**
+     * Selects a ledger and re-renders the transaction details.
+     * @param {string} id - The ID of the ledger to select.
+     */
+    function selectLedger(id) {
+        selectedLedgerId = id;
+        renderApp(); // Re-render to highlight selected ledger and show its transactions
+    }
+
+    // --- Modal Handlers ---
+
+    /**
+     * Opens the ledger modal for adding or renaming.
+     * @param {string} mode - 'add' or 'rename'.
+     * @param {string} [ledgerId] - Required for 'rename' mode.
+     * @param {string} [currentName] - Current name for 'rename' mode.
+     */
+    function openLedgerModal(mode, ledgerId = null, currentName = '') {
+        if (mode === 'add') {
+            ledgerModalTitle.textContent = 'Add New Ledger';
+            ledgerNameInput.value = '';
+            confirmLedgerBtn.textContent = 'Add Ledger';
+            confirmLedgerBtn.onclick = () => {
+                const name = ledgerNameInput.value.trim();
+                if (name) {
+                    addLedgerLocally(name);
+                    hideModal(ledgerModal);
+                } else {
+                    showMessage("Input Error", "Ledger name cannot be empty.");
+                }
+            };
+        } else if (mode === 'rename') {
+            ledgerModalTitle.textContent = 'Rename Ledger';
+            ledgerNameInput.value = currentName;
+            confirmLedgerBtn.textContent = 'Rename Ledger';
+            confirmLedgerBtn.onclick = () => {
+                const newName = ledgerNameInput.value.trim();
+                if (newName && ledgerId) {
+                    renameLedgerLocally(ledgerId, newName);
+                    hideModal(ledgerModal);
+                } else {
+                    showMessage("Input Error", "New ledger name cannot be empty.");
+                }
+            };
+        }
+        showModal(ledgerModal);
+    }
+
+    /**
+     * Opens the transaction modal for adding or editing.
+     * @param {string} mode - 'add' or 'edit'.
+     * @param {string} ledgerId - The ID of the parent ledger.
+     * @param {string} [transactionId] - Required for 'edit' mode.
+     * @param {Object} [transactionData] - Current transaction data for 'edit' mode.
+     */
+    function openTransactionModal(mode, ledgerId, transactionId = null, transactionData = {}) {
+        if (!ledgerId) {
+            console.error("No ledger selected for transaction operation.");
+            return;
         }
 
-        /**
-         * Selects a ledger and re-renders the transaction details.
-         * @param {string} id - The ID of the ledger to select.
-         */
-        function selectLedger(id) {
-            selectedLedgerId = id;
-            renderApp(); // Re-render to highlight selected ledger and show its transactions
+        if (mode === 'add') {
+            transactionModalTitle.textContent = 'Add New Transaction';
+            transactionDescriptionInput.value = '';
+            transactionDebitInput.value = '';
+            transactionCreditInput.value = '';
+            confirmTransactionBtn.textContent = 'Add Transaction';
+            confirmTransactionBtn.onclick = () => {
+                const description = transactionDescriptionInput.value.trim();
+                const debit = parseFloat(transactionDebitInput.value) || 0;
+                const credit = parseFloat(transactionCreditInput.value) || 0;
+
+                if (description && (debit > 0 || credit > 0)) {
+                    addTransactionLocally(ledgerId, description, debit, credit);
+                    hideModal(transactionModal);
+                } else {
+                    showMessage("Input Error", "Description cannot be empty and either Debit or Credit must be greater than 0.", 'error');
+                }
+            };
+        } else if (mode === 'edit') {
+            transactionModalTitle.textContent = 'Edit Transaction';
+            transactionDescriptionInput.value = transactionData.description || '';
+            transactionDebitInput.value = transactionData.debit || '';
+            transactionCreditInput.value = transactionData.credit || '';
+            confirmTransactionBtn.textContent = 'Save Changes';
+            confirmTransactionBtn.onclick = () => {
+                const description = transactionDescriptionInput.value.trim();
+                const debit = parseFloat(transactionDebitInput.value) || 0;
+                const credit = parseFloat(transactionCreditInput.value) || 0;
+
+                if (description && (debit > 0 || credit > 0) && transactionId) {
+                    editTransactionLocally(ledgerId, transactionId, description, debit, credit);
+                    hideModal(transactionModal);
+                } else {
+                    showMessage("Input Error", "Description cannot be empty and either Debit or Credit must be greater than 0.", 'error');
+                }
+            };
+        }
+        showModal(transactionModal);
+    }
+
+    /**
+     * Manages the display and functionality of the authentication modal.
+     */
+    function openAuthModal() {
+        authModalTitle.textContent = 'Login or Register'; // Simplified title
+        authSwitchBtn.textContent = 'New User? Register';
+        authConfirmBtn.textContent = 'Login';
+        isRegisterMode = false;
+        authUsernameInput.value = '';
+        authPasswordInput.value = '';
+        authStatusMessage.classList.add('hidden'); // Hide status message initially
+        showModal(authModal);
+    }
+
+
+    /**
+     * Sets up all global event listeners.
+     */
+    function setupEventListeners() {
+        // Auth Modal Event Listeners
+        authSwitchBtn.addEventListener('click', () => {
+            isRegisterMode = !isRegisterMode;
+            if (isRegisterMode) {
+                authModalTitle.textContent = 'Register New User';
+                authSwitchBtn.textContent = 'Existing User? Login';
+                authConfirmBtn.textContent = 'Register';
+            } else {
+                authModalTitle.textContent = 'Login or Register';
+                authSwitchBtn.textContent = 'New User? Register';
+                authConfirmBtn.textContent = 'Login';
+            }
+            authStatusMessage.classList.add('hidden'); // Clear status message on mode switch
+        });
+
+        authConfirmBtn.addEventListener('click', async () => {
+            const email = authUsernameInput.value.trim();
+            const password = authPasswordInput.value.trim();
+
+            if (!email || !password) {
+                authStatusMessage.textContent = 'Email and password cannot be empty.';
+                authStatusMessage.classList.remove('hidden');
+                return;
+            }
+
+            // Initialize Supabase client if not already (redundant but safe check)
+            if (!supabase) {
+                try {
+                    supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                    console.log("Supabase client re-initialized in auth click.");
+                    setupAuthStateListener(); 
+                } catch (e) {
+                    showMessage("Initialization Error", "Failed to initialize Supabase client. Check URL/Key format in the code.", 'error');
+                    console.error("Supabase init error:", e);
+                    return;
+                }
+            }
+
+            if (isRegisterMode) {
+                await registerUser(email, password);
+            } else {
+                await loginUser(email, password);
+            }
+        });
+
+        // Logout Button
+        logoutBtn.addEventListener('click', logout);
+
+        // Ledger Modals
+        addLedgerBtn.addEventListener('click', () => openLedgerModal('add'));
+        cancelLedgerBtn.addEventListener('click', () => hideModal(ledgerModal));
+
+        // Transaction Modals
+        addTransactionBtn.addEventListener('click', () => openTransactionModal('add', selectedLedgerId));
+        cancelTransactionBtn.addEventListener('click', () => hideModal(transactionModal));
+
+        // Export Buttons
+        exportLedgerBtn.addEventListener('click', exportIndividualLedger); // This was missing
+        exportAllBtn.addEventListener('click', exportOverallLedgers);   // This was missing
+
+        // Event listener for message modal close button
+        closeMessageBtn.addEventListener('click', () => hideModal(messageModal));
+    }
+
+    // --- Initial App Load ---
+    document.addEventListener('DOMContentLoaded', () => {
+        // Initialize Supabase client immediately when DOM is loaded using hardcoded keys
+        try {
+            // Check if Supabase object is available before trying to create a client
+            if (typeof Supabase === 'undefined' || !Supabase.createClient) {
+                throw new Error("Supabase library not loaded correctly. Please check CDN script.");
+            }
+            supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            console.log("Supabase client initialized at startup.");
+            setupAuthStateListener(); // Set up listener
+            // Check current auth state to see if a user is already logged in
+            supabase.auth.getSession().then(({ data: { session } }) => {
+                if (session) {
+                    loggedInUserId = session.user.id;
+                    loggedInUserEmail = session.user.email;
+                    mainAppContent.classList.remove('hidden');
+                    logoutBtn.classList.remove('hidden');
+                    fetchUserLedgersFromSupabase();
+                } else {
+                    openAuthModal(); // Show auth modal if no session
+                }
+            });
+        } catch (e) {
+            showMessage("Initialization Error", `Failed to initialize Supabase client: ${e.message}. Check your URL and Key in the code.`, 'error');
+            console.error("Supabase init error:", e);
+            openAuthModal(); // Always show modal on init failure
         }
 
-        // --- Modal Handlers ---
+        setupEventListeners(); // Setup other event listeners
+    });
 
-        /**
-         * Opens the ledger modal for adding or renaming.
-         * @param {string} mode - 'add' or 'rename'.
-         * @param {string} [ledgerId] - Required for 'rename' mode.
-         * @param {string} [currentName] - Current name for 'rename' mode.
-         */
-        function openLedgerModal(mode, ledgerId = null, currentName = '') {
-            if (mode === 'add') {
-                ledgerModalTitle.textContent = 'Add New Ledger';
-                ledgerNameInput.value = '';
-                confirmLedgerBtn.textContent = 'Add Ledger';
-                confirmLedgerBtn.onclick = () => {
-                    const name = ledgerNameInput.value.trim();
-                    if (name) {
-                        addLedgerLocally(name);
-                        hideModal(ledgerModal);
-                    } else {
-                        showMessage("Input Error", "Ledger name cannot be empty.");
-                    }
-                };
-            } else if (mode === 'rename') {
-                ledgerModalTitle.textContent = 'Rename Ledge
+</script>
+</body>
+</html>

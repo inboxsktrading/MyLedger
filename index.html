@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyLedger - Personal Finance Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💰</text></svg>">
+    <style>
+        .spinner {
+            animation: spin 1s linear infinite;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #6366f1;
+            height: 1rem;
+            width: 1rem;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .list-item.selected {
+            background-color: #e0e7ff;
+            border-color: #6366f1;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Loading Spinner -->
+    <div id="loading-spinner" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Auth Modal -->
+    <div id="auth-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 id="auth-modal-title" class="text-2xl font-bold mb-4 text-center">Welcome to MyLedger</h2>
+            
+            <div id="auth-tabs" class="flex border-b mb-4">
+                <button id="login-tab" class="px-4 py-2 font-medium text-indigo-600 border-b-2 border-indigo-600">Login</button>
+                <button id="register-tab" class="px-4 py-2 font-medium text-gray-500">Register</button>
+            </div>
+            
+            <div id="auth-status-message" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 hidden"></div>
+            
+            <form id="auth-form">
+                <div class="mb-4">
+                    <label for="auth-email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input type="email" id="auth-email" required class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                </div>
+                
+                <div class="mb-4">
+                    <label for="auth-password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                    <input type="password" id="auth-password" required minlength="6" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                </div>
+                
+                <div id="password-confirm-field" class="mb-4 hidden">
+                    <label for="auth-password-confirm" class="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                    <input type="password" id="auth-password-confirm" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                </div>
+                
+                <button type="submit" id="auth-submit-btn" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 flex justify-center items-center">
+                    <span id="auth-btn-text">Login</span>
+                    <div id="auth-spinner" class="spinner ml-2 hidden"></div>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main App Content -->
+    <div id="app-content" class="container mx-auto p-4 hidden">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-bold text-gray-800">My Ledger</h1>
+            <button id="logout-btn" class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-md">Logout</button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left Column - Ledgers List -->
+            <div class="lg:col-span-1 bg-white rounded-lg shadow p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold">Your Ledgers</h2>
+                    <button id="add-ledger-btn" class="bg-indigo-600 text-white px-3 py-1 rounded-md flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                        </svg>
+                        Add
+                    </button>
+                </div>
+                
+                <div id="ledgers-list" class="space-y-3 custom-scrollbar overflow-y-auto max-h-96">
+                    <p id="no-ledgers-message" class="text-gray-500 text-center py-4">No ledgers yet. Add one to get started!</p>
+                </div>
+            </div>
+
+            <!-- Right Column - Transactions -->
+            <div class="lg:col-span-2 bg-white rounded-lg shadow p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 id="selected-ledger-name" class="text-xl font-bold">Select a ledger to view transactions</h2>
+                    <button id="add-transaction-btn" class="bg-indigo-600 text-white px-3 py-1 rounded-md flex items-center" disabled>
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                        </svg>
+                        Add Transaction
+                    </button>
+                </div>
+
+                <!-- Transaction Summary -->
+                <div class="grid grid-cols-3 gap-4 mb-6">
+                    <div class="bg-gray-50 p-4 rounded-md text-center">
+                        <div id="total-credits" class="text-green-600 text-xl font-bold">$0.00</div>
+                        <div class="text-gray-500 text-sm">Total Credits</div>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-md text-center">
+                        <div id="total-debits" class="text-red-600 text-xl font-bold">$0.00</div>
+                        <div class="text-gray-500 text-sm">Total Debits</div>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-md text-center">
+                        <div id="ledger-balance" class="text-blue-600 text-xl font-bold">$0.00</div>
+                        <div class="text-gray-500 text-sm">Balance</div>
+                    </div>
+                </div>
+
+                <div id="transactions-list" class="space-y-3 custom-scrollbar overflow-y-auto max-h-96">
+                    <p id="no-transactions-message" class="text-gray-500 text-center py-4">No transactions for this ledger.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ledger Modal -->
+    <div id="ledger-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 id="ledger-modal-title" class="text-xl font-bold mb-4">Add New Ledger</h3>
+            <input type="text" id="ledger-name-input" placeholder="Ledger Name" class="w-full px-3 py-2 border border-gray-300 rounded-md mb-4">
+            <div class="flex justify-end space-x-2">
+                <button id="cancel-ledger-btn" class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-md">Cancel</button>
+                <button id="confirm-ledger-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md">Add Ledger</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transaction Modal -->
+    <div id="transaction-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 id="transaction-modal-title" class="text-xl font-bold mb-4">Add New Transaction</h3>
+            
+            <div class="mb-4">
+                <label for="transaction-description" class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <input type="text" id="transaction-description" placeholder="Description" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+            </div>
+            
+            <div class="mb-4">
+                <label for="transaction-category" class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <div class="flex">
+                    <input type="text" id="transaction-category" placeholder="e.g. Food, Utilities" class="flex-grow px-3 py-2 border border-gray-300 rounded-l-md">
+                    <button id="suggest-category-btn" class="bg-gray-200 hover:bg-gray-300 px-3 py-2 rounded-r-md">Suggest</button>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label for="transaction-debit" class="block text-sm font-medium text-gray-700 mb-1">Debit</label>
+                    <input type="number" id="transaction-debit" placeholder="0.00" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                </div>
+                <div>
+                    <label for="transaction-credit" class="block text-sm font-medium text-gray-700 mb-1">Credit</label>
+                    <input type="number" id="transaction-credit" placeholder="0.00" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                </div>
+            </div>
+            
+            <div class="flex justify-end space-x-2">
+                <button id="cancel-transaction-btn" class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-md">Cancel</button>
+                <button id="confirm-transaction-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md">Add Transaction</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message Modal -->
+    <div id="message-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 id="message-modal-title" class="text-xl font-bold mb-2"></h3>
+            <p id="message-modal-content" class="mb-4"></p>
+            <button id="close-message-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md">OK</button>
+        </div>
+    </div>
+
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="app.js"></script>
+</body>
+</html>

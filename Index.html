@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ledger Manager (Supabase)</title>
+    <!-- Supabase CDN for client library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        /* Base styles */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            color: #374151;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1rem;
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        /* Basic box-shadow for cards/containers */
+        .container-shadow {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        /* Main App Container Layout */
+        .app-container {
+            background-color: white;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            padding: 2rem;
+            width: 100%;
+            max-width: 72rem;
+            margin-left: auto;
+            margin-right: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+        @media (min-width: 768px) {
+            .app-container {
+                flex-direction: row;
+            }
+        }
+
+        /* Column Styles */
+        .column {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .left-column {
+            width: 100%;
+        }
+        .right-column {
+            width: 100%;
+            flex-grow: 1;
+        }
+        @media (min-width: 768px) {
+            .left-column {
+                width: 33.333333%;
+            }
+            .right-column {
+                width: 66.666667%;
+            }
+        }
+
+        /* Button Styles */
+        .btn-primary {
+            background-color: #4f46e5;
+            color: white;
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            transition-property: all;
+            transition-duration: 200ms;
+            transition-timing-function: ease-in-out;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            white-space: nowrap;
+            border: none; /* Add this to remove default button border */
+            cursor: pointer;
+        }
+        .btn-primary:hover {
+            background-color: #4338ca;
+            transform: scale(1.05);
+        }
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background-color: #e5e7eb;
+            color: #374151;
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            transition-property: all;
+            transition-duration: 200ms;
+            transition-timing-function: ease-in-out;
+            border: none; /* Add this to remove default button border */
+            cursor: pointer;
+        }
+        .btn-secondary:hover {
+            background-color: #d1d5db;
+            transform: scale(1.05);
+        }
+        .btn-secondary:active {
+            transform: scale(0.98);
+        }
+
+        .btn-danger {
+            background-color: #ef4444;
+            color: white;
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            transition-property: all;
+            transition-duration: 200ms;
+            transition-timing-function: ease-in-out;
+            border: none; /* Add this to remove default button border */
+            cursor: pointer;
+        }
+        .btn-danger:hover {
+            background-color: #dc2626;
+            transform: scale(1.05);
+        }
+        .btn-danger:active {
+            transform: scale(0.98);
+        }
+
+        .btn-outline {
+            border: 1px solid #6366f1;
+            color: #4f46e5;
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            transition-property: all;
+            transition-duration: 200ms;
+            transition-timing-function: ease-in-out;
+            width: 100%;
+            margin-top: 1.5rem;
+            background-color: transparent; /* Ensure transparent background */
+            cursor: pointer;
+        }
+        .btn-outline:hover {
+            background-color: #6366f1;
+            color: white;
+            transform: scale(1.05);
+        }
+        .btn-outline:active {
+            transform: scale(0.98);
+        }
+        .btn-outline:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Modal Styles */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(17, 24, 39, 0.75);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            z-index: 50;
+        }
+        .modal.hidden {
+            display: none;
+        }
+        .modal-content {
+            background-color: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            padding: 1.5rem;
+            width: 100%;
+            max-width: 28rem;
+        }
+
+        /* Input Styles */
+        input[type="text"], input[type="number"], input[type="password"] {
+            margin-top: 0.25rem;
+            display: block;
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            outline: none;
+            box-sizing: border-box;
+        }
+        input[type="text"]:focus, input[type="number"]:focus, input[type="password"]:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 1px #6366f1;
+        }
+        input[type="text"]::placeholder, input[type="number"]::placeholder, input[type="password"]::placeholder {
+            color: #9ca3af;
+        }
+        .mb-3 { margin-bottom: 0.75rem; }
+        .mb-4 { margin-bottom: 1rem; }
+
+        /* Dashboard & Panels */
+        .dashboard-card {
+            background-color: #6366f1;
+            color: white;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .panel-card {
+            background-color: #f9fafb;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+        }
+
+        /* Headers and Text */
+        h2 {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+        h3 {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+        .text-4xl { font-size: 2.25rem; }
+        .font-extrabold { font-weight: 800; }
+        .text-sm { font-size: 0.875rem; }
+        .font-medium { font-weight: 500; }
+        .font-semibold { font-weight: 600; }
+        .opacity-90 { opacity: 0.9; }
+        .text-gray-500 { color: #6b7280; }
+        .text-center { text-align: center; }
+        .py-4 { padding-top: 1rem; padding-bottom: 1rem; }
+        .text-gray-800 { color: #1f2937; }
+        .text-gray-600 { color: #4b5563; }
+
+        /* Spacing utilities (manual) */
+        .mb-2 { margin-bottom: 0.5rem; }
+        .mb-4 { margin-bottom: 1rem; }
+        .mb-6 { margin-bottom: 1.5rem; }
+        .mt-6 { margin-top: 1.5rem; }
+        .ml-4 { margin-left: 1rem; }
+        .mt-2 { margin-top: 0.5rem; }
+
+        /* Flexbox & Grid Utilities (manual) */
+        .flex { display: flex; }
+        .items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .justify-end { justify-content: flex-end; }
+        .flex-grow { flex-grow: 1; }
+        .grid { display: grid; }
+        .grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .gap-2 { gap: 0.5rem; }
+        .gap-4 { gap: 1rem; }
+        .gap-x-4 { column-gap: 1rem; }
+
+        /* Vertical spacing for lists */
+        .space-y-3 > *:not([hidden]) ~ *:not([hidden]) { margin-top: 0.75rem; }
+        .space-y-2 > *:not([hidden]) ~ *:not([hidden]) { margin-top: 0.5rem; }
+        .space-x-2 > *:not([hidden]) ~ *:not([hidden]) { margin-left: 0.5rem; }
+
+        /* Lists & Scrollbars */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        .overflow-y-auto { overflow-y: auto; }
+        .max-h-96 { max-height: 24rem; }
+        .max-h-calc { max-height: calc(100vh - 350px); }
+
+        /* Ledger/Transaction List Items */
+        .list-item { /* General style for list items */
+            background-color: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition-property: background-color, border-color, box-shadow, transform;
+            transition-duration: 200ms;
+            transition-timing-function: ease-in-out;
+        }
+        .list-item.clickable { /* For items with click functionality */
+            cursor: pointer;
+        }
+        .list-item.clickable:hover {
+            background-color: #f3f4f6;
+        }
+        .list-item.selected { /* For active ledger */
+            background-color: #e0e7ff;
+            border-color: #6366f1;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .list-item .action-button { /* For rename/delete buttons */
+            color: #6b7280;
+            padding: 0.25rem;
+            border-radius: 9999px;
+            background-color: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none; /* Add this to remove default button border */
+            cursor: pointer;
+        }
+        .list-item .action-button:hover {
+            background-color: #e5e7eb;
+        }
+        .list-item .action-button.rename:hover {
+            color: #4f46e5;
+        }
+        .list-item .action-button.delete:hover {
+            color: #dc2626;
+        }
+        /* Ensure SVG icons within buttons have proper sizing */
+        .list-item .action-button svg {
+            width: 1.25rem;
+            height: 1.25rem;
+        }
+
+        /* Summary Cards */
+        .summary-card {
+            background-color: white;
+            padding: 0.75rem;
+            border-radius: 0.375rem;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+
+        /* Colors for balances/amounts */
+        .text-green-600 { color: #16a34a; }
+        .text-red-600 { color: #dc2626; }
+        .text-blue-600 { color: #2563eb; }
+        .text-red-500 { color: #ef4444; }
+        .text-green-500 { color: #22c55e; }
+
+        /* Fixed elements like User ID display and Loading Spinner */
+        .fixed-top-left {
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            background-color: #1f2937;
+            color: white;
+            font-size: 0.75rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.375rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            z-index: 50;
+        }
+
+        #loading-spinner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(17, 24, 39, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        #loading-spinner.hidden {
+            display: none;
+        }
+        .spinner-animation {
+            animation: spin 1s linear infinite;
+            border-radius: 50%;
+            height: 4rem;
+            width: 4rem;
+            border-top: 4px solid #6366f1;
+            border-bottom: 4px solid #6366f1;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* Hide main app content until logged in */
+        .app-container.hidden {
+            display: none;
+        }
+        .logout-button-container {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 60; /* Higher than fixed-top-left to avoid overlap */
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4">
+
+    <!-- Loading Spinner -->
+    <div id="loading-spinner" class="hidden">
+        <div class="spinner-animation"></div>
+    </div>
+
+    <!-- User ID Display -->
+    <div class="fixed-top-left">
+        Logged in as: <span id="user-id-display">N/A</span>
+    </div>
+
+    <!-- Logout Button -->
+    <div class="logout-button-container">
+        <button id="logout-btn" class="btn-secondary hidden">Logout</button>
+    </div>
+
+
+    <div id="main-app-content" class="app-container hidden">
+        <!-- Left Column: Dashboard and Ledgers List -->
+        <div class="column left-column">
+            <!-- Dashboard -->
+            <div class="dashboard-card">
+                <h2 class="text-xl font-bold mb-2">Dashboard</h2>
+                <div class="text-4xl font-extrabold" id="grand-total-balance">0.00</div>
+                <p class="text-sm opacity-90">Grand Total Balance</p>
+            </div>
+
+            <!-- Ledger Management -->
+            <div class="panel-card">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold">Your Ledgers</h2>
+                    <button id="add-ledger-btn" class="btn-primary">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                        Add Ledger
+                    </button>
+                </div>
+                <div id="ledgers-list" class="space-y-3 custom-scrollbar overflow-y-auto max-h-96">
+                    <!-- Ledgers will be dynamically loaded here -->
+                    <p class="text-gray-500 text-center py-4" id="no-ledgers-message">No ledgers yet. Add one to get started!</p>
+                </div>
+                <button id="export-all-btn" class="btn-outline">Export All Ledgers (CSV)</button>
+            </div>
+        </div>
+
+        <!-- Right Column: Transactions List -->
+        <div class="column right-column">
+            <div class="panel-card">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold" id="selected-ledger-name">Select a Ledger to View Transactions</h2>
+                    <button id="add-transaction-btn" class="btn-primary" disabled>
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                        Add Transaction
+                    </button>
+                </div>
+
+                <!-- Transaction Summary -->
+                <div class="grid grid-cols-3 gap-4 mb-4 text-center text-sm font-medium">
+                    <div class="summary-card">
+                        <div class="text-green-600 text-xl font-bold" id="total-credits">0.00</div>
+                        <div class="text-gray-500">Total Credits</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="text-red-600 text-xl font-bold" id="total-debits">0.00</div>
+                        <div class="text-gray-500">Total Debits</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="text-blue-600 text-xl font-bold" id="ledger-balance">0.00</div>
+                        <div class="text-gray-500">Ledger Balance</div>
+                    </div>
+                </div>
+
+                <div id="transactions-list" class="space-y-2 custom-scrollbar overflow-y-auto max-h-calc">
+                    <!-- Transactions will be dynamically loaded here -->
+                    <p class="text-gray-500 text-center py-4" id="no-transactions-message">No transactions for this ledger. Add one!</p>
+                </div>
+                <button id="export-ledger-btn" class="btn-outline" disabled>Export Current Ledger (CSV)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login/Signup Modal -->
+    <div id="auth-modal" class="modal">
+        <div class="modal-content">
+            <h3 id="auth-modal-title" class="text-xl font-bold mb-4 text-center">Welcome!</h3>
+            <div id="auth-status-message" class="text-sm text-red-600 text-center mb-4 hidden"></div>
+
+            <label for="auth-username-input" class="text-sm font-medium text-gray-700">Email (Username)</label>
+            <input type="text" id="auth-username-input" placeholder="your@email.com" class="mb-3">
+
+            <label for="auth-password-input" class="text-sm font-medium text-gray-700">Password</label>
+            <input type="password" id="auth-password-input" placeholder="••••••••" class="mb-4">
+
+            <div class="flex justify-end gap-2">
+                <button id="auth-switch-btn" class="btn-secondary">Switch to Register</button>
+                <button id="auth-confirm-btn" class="btn-primary">Login</button>
+            </div>
+            <p class="text-sm text-gray-500 text-center mt-4">
+                This app now uses Supabase for synchronized data across devices.<br>
+                **Ensure you set up your Supabase project (URL/Key) and RLS policies correctly.**
+            </p>
+        </div>
+    </div>
+
+    <!-- Other Modals (Ledger, Transaction, Confirm, Message) - remain unchanged -->
+    <div id="ledger-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3 id="ledger-modal-title" class="text-xl font-bold mb-4">Add New Ledger</h3>
+            <input type="text" id="ledger-name-input" placeholder="Ledger Name" class="mb-4">
+            <div class="flex justify-end gap-2">
+                <button id="cancel-ledger-btn" class="btn-secondary">Cancel</button>
+                <button id="confirm-ledger-btn" class="btn-primary">Add Ledger</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="transaction-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3 id="transaction-modal-title" class="text-xl font-bold mb-4">Add New Transaction</h3>
+            <input type="text" id="transaction-description-input" placeholder="Description" class="mb-3">
+            <input type="number" id="transaction-debit-input" placeholder="Debit Amount" class="mb-3" step="0.01">
+            <input type="number" id="transaction-credit-input" placeholder="Credit Amount" class="mb-4" step="0.01">
+            <div class="flex justify-end gap-2">
+                <button id="cancel-transaction-btn" class="btn-secondary">Cancel</button>
+                <button id="confirm-transaction-btn" class="btn-primary">Add Transaction</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirm-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3 id="confirm-modal-title" class="text-xl font-bold mb-4">Confirm Action</h3>
+            <p id="confirm-modal-message" class="mb-6">Are you sure you want to proceed?</p>
+            <div class="flex justify-end gap-2">
+                <button id="confirm-no-btn" class="btn-secondary">No</button>
+                <button id="confirm-yes-btn" class="btn-danger">Yes</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="message-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3 id="message-modal-title" class="text-xl font-bold mb-4"></h3>
+            <p id="message-modal-message" class="mb-6"></p>
+            <div class="flex justify-end">
+                <button id="close-message-btn" class="btn-primary">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Supabase Configuration (Replace with your actual project details) ---
+        // IMPORTANT: Replace 'YOUR_SUPABASE_URL' and 'YOUR_SUPABASE_ANON_KEY' with your keys
+        // You can find these in your Supabase Project Settings -> API.
+        const SUPABASE_URL = 'YOUR_SUPABASE_URL'; 
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+        // Initialize Supabase client globally
+        let supabase = null; 
+
+        // Global variables for data storage
+        let ledgers = []; // Array to store current user's ledger data, fetched from Supabase
+        let selectedLedgerId = null; // ID of the currently selected ledger
+        let loggedInUserId = null; // Supabase User ID (UUID)
+        let loggedInUserEmail = null; // Supabase User Email
+
+        // DOM element references
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const userIdDisplay = document.getElementById('user-id-display');
+        const logoutBtn = document.getElementById('logout-btn');
+        const mainAppContent = document.getElementById('main-app-content'); // Main app container
+
+        const grandTotalBalanceElem = document.getElementById('grand-total-balance');
+        const ledgersListElem = document.getElementById('ledgers-list');
+        const noLedgersMessage = document.getElementById('no-ledgers-message');
+        const addLedgerBtn = document.getElementById('add-ledger-btn');
+        const exportAllBtn = document.getElementById('export-all-btn');
+
+        const selectedLedgerNameElem = document.getElementById('selected-ledger-name');
+        const totalCreditsElem = document.getElementById('total-credits');
+        const totalDebitsElem = document.getElementById('total-debits');
+        const ledgerBalanceElem = document.getElementById('ledger-balance');
+        const transactionsListElem = document.getElementById('transactions-list');
+        const noTransactionsMessage = document.getElementById('no-transactions-message');
+        const addTransactionBtn = document.getElementById('add-transaction-btn');
+        const exportLedgerBtn = document.getElementById('export-ledger-btn');
+
+        // Auth Modals
+        const authModal = document.getElementById('auth-modal');
+        const authModalTitle = document.getElementById('auth-modal-title');
+        const authStatusMessage = document.getElementById('auth-status-message');
+        const authUsernameInput = document.getElementById('auth-username-input'); // This is now email
+        const authPasswordInput = document.getElementById('auth-password-input');
+        const authSwitchBtn = document.getElementById('auth-switch-btn');
+        const authConfirmBtn = document.getElementById('auth-confirm-btn');
+
+        // Other Modals
+        const ledgerModal = document.getElementById('ledger-modal');
+        const ledgerModalTitle = document.getElementById('ledger-modal-title');
+        const ledgerNameInput = document.getElementById('ledger-name-input');
+        const cancelLedgerBtn = document.getElementById('cancel-ledger-btn');
+        const confirmLedgerBtn = document.getElementById('confirm-ledger-btn');
+
+        const transactionModal = document.getElementById('transaction-modal');
+        const transactionModalTitle = document.getElementById('transaction-modal-title');
+        const transactionDescriptionInput = document.getElementById('transaction-description-input');
+        const transactionDebitInput = document.getElementById('transaction-debit-input');
+        const transactionCreditInput = document.getElementById('transaction-credit-input');
+        const cancelTransactionBtn = document.getElementById('cancel-transaction-btn');
+        const confirmTransactionBtn = document.getElementById('confirm-transaction-btn');
+
+        const confirmModal = document.getElementById('confirm-modal');
+        const confirmModalTitle = document.getElementById('confirm-modal-title');
+        const confirmModalMessage = document.getElementById('confirm-modal-message');
+        const confirmNoBtn = document.getElementById('confirm-no-btn');
+        const confirmYesBtn = document.getElementById('confirm-yes-btn');
+
+        const messageModal = document.getElementById('message-modal');
+        const messageModalTitle = document.getElementById('message-modal-title');
+        const messageModalMessage = document.getElementById('message-modal-message');
+        const closeMessageBtn = document.getElementById('close-message-btn');
+
+        let isRegisterMode = false; // To toggle between login and register
+
+        // --- Utility Functions ---
+
+        /**
+         * Displays the loading spinner.
+         */
+        function showLoading() {
+            loadingSpinner.classList.remove('hidden');
+        }
+
+        /**
+         * Hides the loading spinner.
+         */
+        function hideLoading() {
+            loadingSpinner.classList.add('hidden');
+        }
+
+        /**
+         * Shows a modal.
+         * @param {HTMLElement} modalElement - The modal to show.
+         */
+        function showModal(modalElement) {
+            modalElement.classList.remove('hidden');
+        }
+
+        /**
+         * Hides a modal.
+         * @param {HTMLElement} modalElement - The modal to hide.
+         */
+        function hideModal(modalElement) {
+            modalElement.classList.add('hidden');
+        }
+
+        /**
+         * Formats a number as a currency string.
+         * @param {number} amount - The amount to format.
+         * @returns {string} Formatted currency string.
+         */
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+        }
+
+        /**
+         * Prompts the user for confirmation using a modal.
+         * @param {string} title - The title for the confirmation modal.
+         * @param {string} message - The message for the confirmation modal.
+         * @returns {Promise<boolean>} A promise that resolves to true if confirmed, false otherwise.
+         */
+        function requestConfirmation(title, message) {
+            return new Promise((resolve) => {
+                confirmModalTitle.textContent = title;
+                confirmModalMessage.textContent = message;
+                showModal(confirmModal);
+
+                const handleYes = () => {
+                    hideModal(confirmModal);
+                    confirmYesBtn.removeEventListener('click', handleYes);
+                    confirmNoBtn.removeEventListener('click', handleNo);
+                    resolve(true);
+                };
+
+                const handleNo = () => {
+                    hideModal(confirmModal);
+                    confirmYesBtn.removeEventListener('click', handleYes);
+                    confirmNoBtn.removeEventListener('click', handleNo);
+                    resolve(false);
+                };
+
+                confirmYesBtn.addEventListener('click', handleYes);
+                confirmNoBtn.addEventListener('click', handleNo);
+            });
+        }
+
+        /**
+         * Shows a generic message modal.
+         * @param {string} title - The title for the message modal.
+         * @param {string} message - The message for the message modal.
+         * @param {string} [type='error'] - 'error' or 'info'. Determines text color.
+         */
+        function showMessage(title, message, type = 'error') {
+            messageModalTitle.textContent = title;
+            messageModalMessage.textContent = message;
+            if (type === 'error') {
+                messageModalMessage.style.color = '#dc2626'; /* red-600 */
+            } else {
+                messageModalMessage.style.color = '#374151'; /* gray-800 */
+            }
+            showModal(messageModal);
+        }
+
+        /**
+         * Downloads a CSV file.
+         * @param {string} csvString - The CSV content.
+         * @param {string} fileName - The name of the file to download.
+         */
+        function downloadCSV(csvString, fileName) {
+            const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            if (link.download !== undefined) { // feature detection
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', fileName);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        }
+
+        /**
+         * Generates a unique ID (simple UUID-like for offline use, now deprecated for Supabase).
+         * @returns {string} A unique ID string.
+         */
+        function generateUniqueId() {
+            // This is largely symbolic now that Supabase generates IDs for main rows
+            // but still useful for nested ledger/transaction IDs for client-side tracking.
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+
+        // --- Supabase Data Operations ---
+
+        /**
+         * Saves the current user's ledger data to Supabase.
+         * This function handles both creating new user data records and updating existing ones.
+         */
+        async function saveUserLedgersToSupabase() {
+            if (!supabase || !loggedInUserId) {
+                showMessage("Error", "User not logged in or Supabase not initialized.", 'error');
+                return;
+            }
+            showLoading();
+            try {
+                // Check if a record for this user_id already exists
+                const { data: existingData, error: fetchError } = await supabase
+                    .from('user_data') // Using 'user_data' as per simplified instructions
+                    .select('id, ledgers') // Changed to 'ledgers' column
+                    .eq('user_id', loggedInUserId)
+                    .single();
+
+                if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is 'No rows found'
+                    throw fetchError;
+                }
+
+                if (existingData) {
+                    // Update existing record
+                    const { error: updateError } = await supabase
+                        .from('user_data') // Using 'user_data'
+                        .update({ ledgers: ledgers }) // Update 'ledgers' column
+                        .eq('user_id', loggedInUserId);
+                    if (updateError) throw updateError;
+                    console.log("Ledgers updated successfully in Supabase.");
+                } else {
+                    // Insert new record
+                    const { error: insertError } = await supabase
+                        .from('user_data') // Using 'user_data'
+                        .insert([{ user_id: loggedInUserId, ledgers: ledgers }]); // Insert into 'ledgers' column
+                    if (insertError) throw insertError;
+                    console.log("New user ledger record created successfully in Supabase.");
+                }
+            } catch (error) {
+                console.error('Error saving ledgers to Supabase:', error);
+                showMessage("Save Error", `Failed to save ledgers: ${error.message}`, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        /**
+         * Fetches ledgers for the currently logged-in user from Supabase.
+         */
+        async function fetchUserLedgersFromSupabase() {
+            if (!supabase || !loggedInUserId) {
+                ledgers = []; // Clear ledgers if not logged in
+                return;
+            }
+            showLoading();
+            try {
+                const { data, error } = await supabase
+                    .from('user_data') // Using 'user_data'
+                    .select('ledgers') // Select 'ledgers' column
+                    .eq('user_id', loggedInUserId)
+                    .single(); // Expecting only one row per user_id
+
+                if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found (new user)
+                    throw error;
+                }
+
+                if (data && data.ledgers) { // Access the 'ledgers' property
+                    ledgers = data.ledgers;
+                    console.log("Ledgers fetched successfully from Supabase:", ledgers);
+                } else {
+                    ledgers = []; // No ledgers found for this user
+                    console.log("No ledgers found for this user in Supabase.");
+                }
+            } catch (error) {
+                console.error('Error fetching ledgers from Supabase:', error);
+                showMessage("Fetch Error", `Failed to load ledgers: ${error.message}`, 'error');
+                ledgers = []; // Ensure ledgers are empty on error
+            } finally {
+                hideLoading();
+                renderApp(); // Always render after fetch
+            }
+        }
+
+
+        // --- Supabase Authentication ---
+
+        /**
+         * Handles user login with Supabase.
+         * @param {string} email - User's email.
+         * @param {string} password - User's password.
+         */
+        async function loginUser(email, password) {
+            showLoading();
+            authStatusMessage.classList.add('hidden');
+            try {
+                // Supabase client MUST be initialized before authentication
+                if (!supabase) {
+                    showMessage("Configuration Error", "Supabase client not initialized. Check your URL and Key.", 'error');
+                    return false;
+                }
+                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+                if (error) {
+                    throw error;
+                }
+
+                loggedInUserId = data.user.id;
+                loggedInUserEmail = data.user.email;
+                hideModal(authModal);
+                mainAppContent.classList.remove('hidden');
+                logoutBtn.classList.remove('hidden');
+                await fetchUserLedgersFromSupabase(); // Load user-specific data after login
+                showMessage("Login Successful", `Welcome back, ${loggedInUserEmail}!`, 'info');
+                return true;
+            } catch (error) {
+                console.error("Login error:", error);
+                authStatusMessage.textContent = `Login failed: ${error.message}`;
+                authStatusMessage.classList.remove('hidden');
+                return false;
+            } finally {
+                hideLoading();
+            }
+        }
+
+        /**
+         * Handles user registration with Supabase.
+         * @param {string} email - New user's email.
+         * @param {string} password - New user's password.
+         */
+        async function registerUser(email, password) {
+            showLoading();
+            authStatusMessage.classList.add('hidden');
+            try {
+                // Supabase client MUST be initialized before authentication
+                if (!supabase) {
+                    showMessage("Configuration Error", "Supabase client not initialized. Check your URL and Key.", 'error');
+                    return false;
+                }
+                const { data, error } = await supabase.auth.signUp({ email, password });
+
+                if (error) {
+                    throw error;
+                }
+
+                // Supabase automatically logs in the user after signup
+                loggedInUserId = data.user.id;
+                loggedInUserEmail = data.user.email;
+                hideModal(authModal);
+                mainAppContent.classList.remove('hidden');
+                logoutBtn.classList.remove('hidden');
+                // For new users, ledgers will be empty and a new entry will be created on first save
+                ledgers = [];
+                renderApp();
+                showMessage("Registration Successful", `Welcome, ${loggedInUserEmail}! Please check your email to confirm your account (if email confirmation is enabled in Supabase settings).`, 'info');
+                return true;
+            } catch (error) {
+                console.error("Registration error:", error);
+                authStatusMessage.textContent = `Registration failed: ${error.message}`;
+                authStatusMessage.classList.remove('hidden');
+                return false;
+            } finally {
+                hideLoading();
+            }
+        }
+
+        /**
+         * Logs out the current user from Supabase.
+         */
+        async function logout() {
+            const confirmed = await requestConfirmation(
+                "Logout",
+                "Are you sure you want to log out?"
+            );
+            if (!confirmed) {
+                return;
+            }
+            showLoading();
+            try {
+                if (!supabase) {
+                     showMessage("Error", "Supabase client not initialized.", 'error');
+                     return;
+                }
+                const { error } = await supabase.auth.signOut();
+
+                if (error) {
+                    throw error;
+                }
+                loggedInUserId = null;
+                loggedInUserEmail = null;
+                ledgers = []; // Clear current ledgers
+                selectedLedgerId = null; // Clear selected ledger
+                mainAppContent.classList.add('hidden'); // Hide main app
+                logoutBtn.classList.add('hidden'); // Hide logout button
+                userIdDisplay.textContent = 'N/A'; // Reset display
+                renderApp(); // Clear UI
+                openAuthModal(); // Show login/signup screen again
+                showMessage("Logged Out", "You have been successfully logged out.", 'info');
+            } catch (error) {
+                console.error("Logout error:", error);
+                showMessage("Logout Error", `Failed to log out: ${error.message}`, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        /**
+         * Listens for Supabase authentication state changes.
+         * This ensures data is loaded/cleared when a user logs in or out.
+         */
+        function setupAuthStateListener() {
+            if (!supabase) {
+                console.warn("Supabase client not initialized, cannot set up auth state listener.");
+                return;
+            }
+            // Ensure this listener is only attached once
+            if (!window.supabaseAuthListenerAttached) {
+                supabase.auth.onAuthStateChange(async (event, session) => {
+                    console.log("Auth state changed:", event, session);
+                    if (session) {
+                        loggedInUserId = session.user.id;
+                        loggedInUserEmail = session.user.email;
+                        userIdDisplay.textContent = loggedInUserEmail;
+                        mainAppContent.classList.remove('hidden');
+                        logoutBtn.classList.remove('hidden');
+                        await fetchUserLedgersFromSupabase(); // Fetch data when session is established
+                    } else {
+                        loggedInUserId = null;
+                        loggedInUserEmail = null;
+                        ledgers = [];
+                        selectedLedgerId = null;
+                        mainAppContent.classList.add('hidden');
+                        logoutBtn.classList.add('hidden');
+                        userIdDisplay.textContent = 'N/A';
+                        renderApp();
+                        // Do not show auth modal here, it's handled by initializeApp or logout
+                    }
+                });
+                window.supabaseAuthListenerAttached = true; // Mark listener as attached
+            }
+        }
+
+
+        // --- Core Application Logic (Modified to use Supabase instead of localStorage) ---
+
+        /**
+         * Adds a new ledger for the current user.
+         */
+        async function addLedgerLocally(name) {
+            if (!loggedInUserId) {
+                showMessage("Error", "Please log in to add ledgers.", 'error');
+                return;
+            }
+            const newLedger = {
+                id: generateUniqueId(), // Client-side ID for immediate UI update
+                name: name,
+                createdAt: new Date().toISOString(),
+                transactions: []
+            };
+            ledgers.push(newLedger);
+            await saveUserLedgersToSupabase();
+            renderApp(); // Re-render to show new ledger and update dashboard
+        }
+
+        /**
+         * Renames an existing ledger.
+         * @param {string} ledgerId - The ID of the ledger to rename.
+         * @param {string} newName - The new name for the ledger.
+         */
+        async function renameLedgerLocally(ledgerId, newName) {
+            const ledger = ledgers.find(l => l.id === ledgerId);
+            if (ledger) {
+                ledger.name = newName;
+                await saveUserLedgersToSupabase();
+                renderApp();
+            } else {
+                showMessage("Error", "Ledger not found.", 'error');
+            }
+        }
+
+        /**
+         * Deletes a ledger and all its transactions.
+         * @param {string} ledgerId - The ID of the ledger to delete.
+         */
+        async function deleteLedgerLocally(ledgerId) {
+            const confirmed = await requestConfirmation(
+                "Delete Ledger",
+                "Are you sure you want to delete this ledger and all its transactions? This action cannot be undone."
+            );
+            if (!confirmed) {
+                return;
+            }
+
+            ledgers = ledgers.filter(l => l.id !== ledgerId);
+            if (selectedLedgerId === ledgerId) {
+                selectedLedgerId = null;
+            }
+            await saveUserLedgersToSupabase();
+            renderApp();
+        }
+
+        /**
+         * Adds a new transaction to a specific ledger.
+         * @param {string} ledgerId - The ID of the ledger.
+         * @param {string} description - The transaction description.
+         * @param {number} debit - The debit amount.
+         * @param {number} credit - The credit amount.
+         */
+        async function addTransactionLocally(ledgerId, description, debit, credit) {
+            const ledger = ledgers.find(l => l.id === ledgerId);
+            if (ledger) {
+                const newTransaction = {
+                    id: generateUniqueId(), // Client-side ID
+                    description: description,
+                    debit: parseFloat(debit) || 0,
+                    credit: parseFloat(credit) || 0,
+                    timestamp: new Date().toISOString()
+                };
+                ledger.transactions.push(newTransaction);
+                await saveUserLedgersToSupabase();
+                renderApp();
+            } else {
+                showMessage("Error", "Ledger not found for transaction.", 'error');
+            }
+        }
+
+        /**
+         * Edits an existing transaction.
+         * @param {string} ledgerId - The ID of the parent ledger.
+         * @param {string} transactionId - The ID of the transaction to edit.
+         * @param {string} description - New description.
+         * @param {number} debit - New debit amount.
+         * @param {number} credit - New credit amount.
+         */
+        async function editTransactionLocally(ledgerId, transactionId, description, debit, credit) {
+            const ledger = ledgers.find(l => l.id === ledgerId);
+            if (ledger) {
+                const transaction = ledger.transactions.find(t => t.id === transactionId);
+                if (transaction) {
+                    transaction.description = description;
+                    transaction.debit = parseFloat(debit) || 0;
+                    transaction.credit = parseFloat(credit) || 0;
+                    await saveUserLedgersToSupabase();
+                    renderApp();
+                } else {
+                    showMessage("Error", "Transaction not found.", 'error');
+                }
+            } else {
+                showMessage("Error", "Ledger not found for editing transaction.", 'error');
+            }
+        }
+
+        /**
+         * Deletes a transaction.
+         * @param {string} ledgerId - The ID of the parent ledger.
+         * @param {string} transactionId - The ID of the transaction to delete.
+         */
+        async function deleteTransactionLocally(ledgerId, transactionId) {
+            const confirmed = await requestConfirmation(
+                "Delete Transaction",
+                "Are you sure you want to delete this transaction?"
+            );
+            if (!confirmed) {
+                return;
+            }
+
+            const ledger = ledgers.find(l => l.id === ledgerId);
+            if (ledger) {
+                ledger.transactions = ledger.transactions.filter(t => t.id !== transactionId);
+                await saveUserLedgersToSupabase();
+                renderApp();
+            } else {
+                showMessage("Error", "Ledger not found for deleting transaction.", 'error');
+            }
+        }
+
+        /**
+         * Calculates the balance for a single ledger.
+         * @param {Array<Object>} transactions - Array of transaction objects.
+         * @returns {number} The calculated balance.
+         */
+        function calculateLedgerBalance(transactions) {
+            let totalCredits = transactions.reduce((sum, t) => sum + (t.credit || 0), 0);
+            let totalDebits = transactions.reduce((sum, t) => sum + (t.debit || 0), 0);
+            return totalCredits - totalDebits;
+        }
+
+        /**
+         * Calculates the grand total balance across all ledgers.
+         * @returns {number} The grand total balance.
+         */
+        function calculateGrandTotalBalance() {
+            return ledgers.reduce((total, ledger) => total + calculateLedgerBalance(ledger.transactions), 0);
+        }
+
+        /**
+         * Renders the entire application UI based on the current state.
+         */
+        function renderApp() {
+            userIdDisplay.textContent = loggedInUserEmail || 'Not Logged In'; // Update username display
+            renderDashboard();
+            renderLedgerList();
+            renderTransactionDetails();
+        }
+
+        /**
+         * Renders the Dashboard section.
+         */
+        function renderDashboard() {
+            grandTotalBalanceElem.textContent = formatCurrency(calculateGrandTotalBalance());
+        }
+
+        /**
+         * Renders the list of ledgers.
+         */
+        function renderLedgerList() {
+            ledgersListElem.innerHTML = ''; // Clear existing list
+
+            if (ledgers.length === 0) {
+                noLedgersMessage.classList.remove('hidden');
+                exportAllBtn.disabled = true;
+            } else {
+                noLedgersMessage.classList.add('hidden');
+                exportAllBtn.disabled = false;
+                ledgers.forEach(ledger => {
+                    const ledgerBalance = calculateLedgerBalance(ledger.transactions);
+                    const ledgerDiv = document.createElement('div');
+                    ledgerDiv.id = `ledger-${ledger.id}`;
+                    ledgerDiv.className = `list-item clickable ${selectedLedgerId === ledger.id ? 'selected' : ''}`;
+                    ledgerDiv.innerHTML = `
+                        <div class="flex-grow" data-ledger-id="${ledger.id}">
+                            <div class="font-semibold text-gray-800 text-lg">${ledger.name}</div>
+                            <div class="text-sm ${ledgerBalance >= 0 ? 'text-green-600' : 'text-red-600'}">Balance: ${formatCurrency(ledgerBalance)}</div>
+                        </div>
+                        <div class="flex space-x-2 ml-4">
+                            <button class="action-button rename" data-ledger-id="${ledger.id}" title="Rename Ledger">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                            </button>
+                            <button class="action-button delete" data-ledger-id="${ledger.id}" title="Delete Ledger">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
+                    `;
+                    ledgersListElem.appendChild(ledgerDiv);
+
+                    // Attach event listeners to the new elements
+                    ledgerDiv.querySelector('.flex-grow').addEventListener('click', () => selectLedger(ledger.id));
+                    ledgerDiv.querySelector('.rename.action-button').addEventListener('click', (e) => {
+                        e.stopPropagation(); // Prevent ledger selection
+                        openLedgerModal('rename', ledger.id, ledger.name);
+                    });
+                    ledgerDiv.querySelector('.delete.action-button').addEventListener('click', (e) => {
+                        e.stopPropagation(); // Prevent ledger selection
+                        deleteLedgerLocally(ledger.id);
+                    });
+                });
+            }
+        }
+
+        /**
+         * Renders the transaction details for the selected ledger.
+         */
+        function renderTransactionDetails() {
+            transactionsListElem.innerHTML = ''; // Clear existing transactions
+            addTransactionBtn.disabled = true;
+            exportLedgerBtn.disabled = true;
+            noTransactionsMessage.classList.remove('hidden');
+
+            const selectedLedger = ledgers.find(l => l.id === selectedLedgerId);
+
+            if (selectedLedger) {
+                selectedLedgerNameElem.textContent = selectedLedger.name;
+                addTransactionBtn.disabled = false;
+                exportLedgerBtn.disabled = false;
+
+                // Sort transactions by timestamp (most recent first)
+                const sortedTransactions = [...selectedLedger.transactions].sort((a, b) => {
+                    // Convert ISO string to Date objects for comparison
+                    const dateA = new Date(a.timestamp);
+                    const dateB = new Date(b.timestamp);
+                    return dateB.getTime() - dateA.getTime();
+                });
+
+                if (sortedTransactions.length === 0) {
+                    noTransactionsMessage.classList.remove('hidden');
+                } else {
+                    noTransactionsMessage.classList.add('hidden');
+                    let totalCredits = 0;
+                    let totalDebits = 0;
+
+                    sortedTransactions.forEach(transaction => {
+                        totalCredits += (transaction.credit || 0);
+                        totalDebits += (transaction.debit || 0);
+
+                        const transactionDiv = document.createElement('div');
+                        transactionDiv.className = 'list-item transaction-item';
+                        transactionDiv.innerHTML = `
+                            <div class="flex-grow">
+                                <div class="font-medium text-gray-800">${transaction.description}</div>
+                                <div class="text-sm text-gray-600">
+                                    <span class="text-red-500">Debit: ${formatCurrency(transaction.debit || 0)}</span>,
+                                    <span class="text-green-500">Credit: ${formatCurrency(transaction.credit || 0)}</span>
+                                    <span class="ml-4 text-xs text-gray-400">${new Date(transaction.timestamp).toLocaleString()}</span>
+                                </div>
+                            </div>
+                            <div class="flex space-x-2 ml-4">
+                                <button class="action-button rename" data-transaction-id="${transaction.id}" title="Edit Transaction">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                </button>
+                                <button class="action-button delete" data-transaction-id="${transaction.id}" title="Delete Transaction">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </div>
+                        `;
+                        transactionsListElem.appendChild(transactionDiv);
+
+                        transactionDiv.querySelector('.rename.action-button').addEventListener('click', () => openTransactionModal('edit', selectedLedger.id, transaction.id, transaction));
+                        transactionDiv.querySelector('.delete.action-button').addEventListener('click', () => deleteTransactionLocally(selectedLedger.id, transaction.id));
+                    });
+
+                    totalCreditsElem.textContent = formatCurrency(totalCredits);
+                    totalDebitsElem.textContent = formatCurrency(totalDebits);
+                    ledgerBalanceElem.textContent = formatCurrency(calculateLedgerBalance(selectedLedger.transactions));
+                }
+            } else {
+                selectedLedgerNameElem.textContent = "Select a Ledger to View Transactions";
+                totalCreditsElem.textContent = formatCurrency(0);
+                totalDebitsElem.textContent = formatCurrency(0);
+                ledgerBalanceElem.textContent = formatCurrency(0);
+                addTransactionBtn.disabled = true;
+                exportLedgerBtn.disabled = true;
+                noTransactionsMessage.classList.remove('hidden');
+            }
+        }
+
+        /**
+         * Selects a ledger and re-renders the transaction details.
+         * @param {string} id - The ID of the ledger to select.
+         */
+        function selectLedger(id) {
+            selectedLedgerId = id;
+            renderApp(); // Re-render to highlight selected ledger and show its transactions
+        }
+
+        // --- Modal Handlers ---
+
+        /**
+         * Opens the ledger modal for adding or renaming.
+         * @param {string} mode - 'add' or 'rename'.
+         * @param {string} [ledgerId] - Required for 'rename' mode.
+         * @param {string} [currentName] - Current name for 'rename' mode.
+         */
+        function openLedgerModal(mode, ledgerId = null, currentName = '') {
+            if (mode === 'add') {
+                ledgerModalTitle.textContent = 'Add New Ledger';
+                ledgerNameInput.value = '';
+                confirmLedgerBtn.textContent = 'Add Ledger';
+                confirmLedgerBtn.onclick = () => {
+                    const name = ledgerNameInput.value.trim();
+                    if (name) {
+                        addLedgerLocally(name);
+                        hideModal(ledgerModal);
+                    } else {
+                        showMessage("Input Error", "Ledger name cannot be empty.");
+                    }
+                };
+            } else if (mode === 'rename') {
+                ledgerModalTitle.textContent = 'Rename Ledge

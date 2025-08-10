@@ -568,7 +568,7 @@
         </div>
     </div>
 
-    <!-- Supabase CDN for client library -->
+    <!-- Supabase CDN for client library - Moved to body end -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
         // --- Supabase Configuration ---
@@ -1196,8 +1196,8 @@
          * @returns {number} The calculated balance.
          */
         function calculateLedgerBalance(transactions) {
-            let totalCredits = transactions.reduce((sum, t) => sum + (t.credit || 0), 0);
-            let totalDebits = transactions.reduce((sum, t) => sum + (t.debit || 0), 0);
+            let totalCredits = transactions.reduce((sum, t => sum + (t.credit || 0)), 0);
+            let totalDebits = transactions.reduce((sum, t => sum + (t.debit || 0)), 0);
             return totalCredits - totalDebits;
         }
 

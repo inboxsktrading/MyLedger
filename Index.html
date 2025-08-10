@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ledger Manager (Supabase)</title>
+    <title>MyLedger (Supabase)</title>
     <style>
         /* Base styles */
         body {
@@ -360,7 +360,7 @@
         .text-green-600 { color: #16a34a; }
         .text-red-600 { color: #dc2626; }
         .text-blue-600 { color: #2563eb; }
-        .text-red-500 { color: #ef4444; }
+        .text-red-600 { color: #ef4444; } /* This was duplicated, kept the original primary one */
         .text-green-500 { color: #22c55e; }
 
         /* Fixed elements like User ID display and Loading Spinner */
@@ -539,9 +539,21 @@
     <div id="transaction-modal" class="modal hidden">
         <div class="modal-content">
             <h3 id="transaction-modal-title" class="text-xl font-bold mb-4">Add New Transaction</h3>
+            <label for="transaction-description-input" class="text-sm font-medium text-gray-700">Description</label>
             <input type="text" id="transaction-description-input" placeholder="Description" class="mb-3">
+
+            <label for="transaction-category-input" class="text-sm font-medium text-gray-700">Category</label>
+            <div class="flex items-center gap-2 mb-3">
+                <input type="text" id="transaction-category-input" placeholder="e.g., Groceries, Utilities" class="flex-grow">
+                <button id="suggest-category-btn" class="btn-secondary">Suggest Category ✨</button>
+            </div>
+
+            <label for="transaction-debit-input" class="text-sm font-medium text-gray-700">Debit Amount</label>
             <input type="number" id="transaction-debit-input" placeholder="Debit Amount" class="mb-3" step="0.01">
+
+            <label for="transaction-credit-input" class="text-sm font-medium text-gray-700">Credit Amount</label>
             <input type="number" id="transaction-credit-input" placeholder="Credit Amount" class="mb-4" step="0.01">
+
             <div class="flex justify-end gap-2">
                 <button id="cancel-transaction-btn" class="btn-secondary">Cancel</button>
                 <button id="confirm-transaction-btn" class="btn-primary">Add Transaction</button>
@@ -575,7 +587,7 @@
     <script>
         // --- Supabase Configuration ---
         const SUPABASE_URL = 'https://vemubkmthzjjzpgbseox.supabase.co'; 
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZlbXVia210aHpqanpwZ2JzZW94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4MDY4NjgsImV4cCI6MjA3MDM4Mjg2OH0.-EqAxZq0xbkgsZnUWpvuPjpPdmhj13KTqvAZgMVqEuQ'; // Your actual key
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZlbXVia210aHpqanpwZ2JzZW94Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4MDY4NjgsImV4cCI6MjA3MDM4Mjg2OH0.-EqAxZq0xbkgsZnUWvvuPjpPdmhj13KTqvAZgMVqEuQ'; // Your actual key
 
         // Initialize Supabase client globally
         let supabase = null; 
@@ -628,6 +640,8 @@
         const transactionModal = document.getElementById('transaction-modal');
         const transactionModalTitle = document.getElementById('transaction-modal-title');
         const transactionDescriptionInput = document.getElementById('transaction-description-input');
+        const transactionCategoryInput = document.getElementById('transaction-category-input'); // New element
+        const suggestCategoryBtn = document.getElementById('suggest-category-btn'); // New element
         const transactionDebitInput = document.getElementById('transaction-debit-input');
         const transactionCreditInput = document.getElementById('transaction-credit-input');
         const cancelTransactionBtn = document.getElementById('cancel-transaction-btn');
@@ -779,9 +793,9 @@
                 return;
             }
 
-            let csvContent = "Description,Debit,Credit,Timestamp\n";
+            let csvContent = "Description,Category,Debit,Credit,Timestamp\n"; // Added Category to CSV header
             selectedLedger.transactions.forEach(t => {
-                csvContent += `${JSON.stringify(t.description || '')},${t.debit || 0},${t.credit || 0},${t.timestamp || ''}\n`;
+                csvContent += `${JSON.stringify(t.description || '')},${JSON.stringify(t.category || '')},${t.debit || 0},${t.credit || 0},${t.timestamp || ''}\n`; // Included category
             });
 
             downloadCSV(csvContent, `${selectedLedger.name.replace(/[^a-z0-9]/gi, '_')}_transactions.csv`);
@@ -797,13 +811,13 @@
                 return;
             }
 
-            let csvContent = "Ledger Name,Description,Debit,Credit,Timestamp\n";
+            let csvContent = "Ledger Name,Description,Category,Debit,Credit,Timestamp\n"; // Added Category to CSV header
             ledgers.forEach(ledger => {
                 if (ledger.transactions.length === 0) {
-                    csvContent += `${JSON.stringify(ledger.name || '')},,,,\n`; // Include ledger name even if no transactions
+                    csvContent += `${JSON.stringify(ledger.name || '')},,,,,\n`; // Include ledger name even if no transactions
                 } else {
                     ledger.transactions.forEach(t => {
-                        csvContent += `${JSON.stringify(ledger.name || '')},${JSON.stringify(t.description || '')},${t.debit || 0},${t.credit || 0},${t.timestamp || ''}\n`;
+                        csvContent += `${JSON.stringify(ledger.name || '')},${JSON.stringify(t.description || '')},${JSON.stringify(t.category || '')},${t.debit || 0},${t.credit || 0},${t.timestamp || ''}\n`; // Included category
                     });
                 }
             });
@@ -831,7 +845,7 @@
 
             try {
                 let transactionDetails = selectedLedger.transactions.map(t => {
-                    return `Description: ${t.description}, Debit: ${t.debit}, Credit: ${t.credit}, Timestamp: ${new Date(t.timestamp).toLocaleString()}`;
+                    return `Description: ${t.description}, Category: ${t.category || 'N/A'}, Debit: ${t.debit}, Credit: ${t.credit}, Timestamp: ${new Date(t.timestamp).toLocaleString()}`;
                 }).join('\n');
 
                 const prompt = `Analyze the following ledger transactions and provide a concise summary of spending patterns, identify any unusually large or frequent transactions, and offer general observations. Present the information clearly.
@@ -871,6 +885,58 @@ Please provide insights in a structured, easy-to-read format.`;
             } catch (error) {
                 console.error('Error calling Gemini API for insights:', error);
                 showMessage("Insights Error", `Failed to generate insights: ${error.message}. Please try again.`, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        /**
+         * Suggests a category for a transaction description using the Gemini API.
+         */
+        async function suggestTransactionCategory() {
+            const description = transactionDescriptionInput.value.trim();
+            if (!description) {
+                showMessage("Suggestion Error", "Please enter a description to get a category suggestion.", 'error');
+                return;
+            }
+
+            showLoading();
+
+            try {
+                const prompt = `Given the following transaction description, suggest a single, concise category (e.g., Groceries, Rent, Utilities, Entertainment, Transport, Shopping, Dining Out, Salary, Gifts, Education, Health, Travel, Miscellaneous). Respond ONLY with the category name.
+
+Description: ${description}`;
+
+                let chatHistory = [];
+                chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+
+                const payload = { contents: chatHistory };
+                const apiKey = ""; // Canvas will provide this dynamically
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const suggestedCategory = result.candidates[0].content.parts[0].text.trim();
+                    transactionCategoryInput.value = suggestedCategory; // Populate the category input
+                } else {
+                    console.error("Gemini API response structure unexpected for category:", result);
+                    showMessage("Category Suggestion Error", "Failed to get category from AI. Unexpected response format.", 'error');
+                    transactionCategoryInput.value = "Miscellaneous"; // Default to miscellaneous on error
+                }
+
+            } catch (error) {
+                console.error('Error calling Gemini API for category:', error);
+                showMessage("Category Suggestion Error", `Failed to suggest category: ${error.message}. Please try again.`, 'error');
+                transactionCategoryInput.value = "Miscellaneous"; // Default to miscellaneous on error
             } finally {
                 hideLoading();
             }
@@ -1190,15 +1256,17 @@ Please provide insights in a structured, easy-to-read format.`;
          * Adds a new transaction to a specific ledger.
          * @param {string} ledgerId - The ID of the ledger.
          * @param {string} description - The transaction description.
+         * @param {string} category - The transaction category.
          * @param {number} debit - The debit amount.
          * @param {number} credit - The credit amount.
          */
-        async function addTransactionLocally(ledgerId, description, debit, credit) {
+        async function addTransactionLocally(ledgerId, description, category, debit, credit) {
             const ledger = ledgers.find(l => l.id === ledgerId);
             if (ledger) {
                 const newTransaction = {
                     id: generateUniqueId(), // Client-side ID
                     description: description,
+                    category: category, // Save category
                     debit: parseFloat(debit) || 0,
                     credit: parseFloat(credit) || 0,
                     timestamp: new Date().toISOString()
@@ -1216,15 +1284,17 @@ Please provide insights in a structured, easy-to-read format.`;
          * @param {string} ledgerId - The ID of the parent ledger.
          * @param {string} transactionId - The ID of the transaction to edit.
          * @param {string} description - New description.
+         * @param {string} category - New category.
          * @param {number} debit - New debit amount.
          * @param {number} credit - New credit amount.
          */
-        async function editTransactionLocally(ledgerId, transactionId, description, debit, credit) {
+        async function editTransactionLocally(ledgerId, transactionId, description, category, debit, credit) {
             const ledger = ledgers.find(l => l.id === ledgerId);
             if (ledger) {
                 const transaction = ledger.transactions.find(t => t.id === transactionId);
                 if (transaction) {
                     transaction.description = description;
+                    transaction.category = category; // Save category
                     transaction.debit = parseFloat(debit) || 0;
                     transaction.credit = parseFloat(credit) || 0;
                     await saveUserLedgersToSupabase();
@@ -1267,7 +1337,7 @@ Please provide insights in a structured, easy-to-read format.`;
          * @returns {number} The calculated balance.
          */
         function calculateLedgerBalance(transactions) {
-            let totalCredits = transactions.reduce((sum, t) => sum + (t.credit || 0), 0);
+            let totalCredits = transactions.reduce((sum, t => sum + (t.credit || 0)), 0);
             let totalDebits = transactions.reduce((sum, t) => sum + (t.debit || 0), 0);
             return totalCredits - totalDebits;
         }
@@ -1393,6 +1463,7 @@ Please provide insights in a structured, easy-to-read format.`;
                             <div class="flex-grow">
                                 <div class="font-medium text-gray-800">${transaction.description}</div>
                                 <div class="text-sm text-gray-600">
+                                    <span>Category: ${transaction.category || 'N/A'}</span> <!-- Display category -->
                                     <span class="text-red-500">Debit: ${formatCurrency(transaction.debit || 0)}</span>,
                                     <span class="text-green-500">Credit: ${formatCurrency(transaction.credit || 0)}</span>
                                     <span class="ml-4 text-xs text-gray-400">${new Date(transaction.timestamp).toLocaleString()}</span>
@@ -1493,16 +1564,18 @@ Please provide insights in a structured, easy-to-read format.`;
         if (mode === 'add') {
             transactionModalTitle.textContent = 'Add New Transaction';
             transactionDescriptionInput.value = '';
+            transactionCategoryInput.value = ''; // Clear category input
             transactionDebitInput.value = '';
             transactionCreditInput.value = '';
             confirmTransactionBtn.textContent = 'Add Transaction';
             confirmTransactionBtn.onclick = () => {
                 const description = transactionDescriptionInput.value.trim();
+                const category = transactionCategoryInput.value.trim(); // Get category
                 const debit = parseFloat(transactionDebitInput.value) || 0;
                 const credit = parseFloat(transactionCreditInput.value) || 0;
 
                 if (description && (debit > 0 || credit > 0)) {
-                    addTransactionLocally(ledgerId, description, debit, credit);
+                    addTransactionLocally(ledgerId, description, category, debit, credit); // Pass category
                     hideModal(transactionModal);
                 } else {
                     showMessage("Input Error", "Description cannot be empty and either Debit or Credit must be greater than 0.", 'error');
@@ -1511,16 +1584,18 @@ Please provide insights in a structured, easy-to-read format.`;
         } else if (mode === 'edit') {
             transactionModalTitle.textContent = 'Edit Transaction';
             transactionDescriptionInput.value = transactionData.description || '';
+            transactionCategoryInput.value = transactionData.category || ''; // Populate category
             transactionDebitInput.value = transactionData.debit || '';
             transactionCreditInput.value = transactionData.credit || '';
             confirmTransactionBtn.textContent = 'Save Changes';
             confirmTransactionBtn.onclick = () => {
                 const description = transactionDescriptionInput.value.trim();
+                const category = transactionCategoryInput.value.trim(); // Get category
                 const debit = parseFloat(transactionDebitInput.value) || 0;
                 const credit = parseFloat(transactionCreditInput.value) || 0;
 
                 if (description && (debit > 0 || credit > 0) && transactionId) {
-                    editTransactionLocally(ledgerId, transactionId, description, debit, credit);
+                    editTransactionLocally(ledgerId, transactionId, description, category, debit, credit); // Pass category
                     hideModal(transactionModal);
                 } else {
                     showMessage("Input Error", "Description cannot be empty and either Debit or Credit must be greater than 0.", 'error');
@@ -1547,22 +1622,26 @@ Please provide insights in a structured, easy-to-read format.`;
     function setupEventListeners() {
         // Auth Modal Event Listeners
         authLoginButton.addEventListener('click', async () => {
+            console.log("Login button clicked. Attempting to log in..."); // Added log
             const email = authUsernameInput.value.trim();
             const password = authPasswordInput.value.trim();
             if (!email || !password) {
                 authStatusMessage.textContent = 'Email and password cannot be empty.';
                 authStatusMessage.classList.remove('hidden');
+                console.warn("Login attempt failed: Email or password empty."); // Added warn log
                 return;
             }
             await loginUser(email, password);
         });
 
         authRegisterButton.addEventListener('click', async () => {
+            console.log("Register button clicked. Attempting to register new user..."); // Added log
             const email = authUsernameInput.value.trim();
             const password = authPasswordInput.value.trim();
             if (!email || !password) {
                 authStatusMessage.textContent = 'Email and password cannot be empty.';
                 authStatusMessage.classList.remove('hidden');
+                console.warn("Register attempt failed: Email or password empty."); // Added warn log
                 return;
             }
             await registerUser(email, password);
@@ -1578,6 +1657,7 @@ Please provide insights in a structured, easy-to-read format.`;
         // Transaction Modals
         addTransactionBtn.addEventListener('click', () => openTransactionModal('add', selectedLedgerId));
         cancelTransactionBtn.addEventListener('click', () => hideModal(transactionModal));
+        suggestCategoryBtn.addEventListener('click', suggestTransactionCategory); // New event listener
 
         // Export Buttons
         exportLedgerBtn.addEventListener('click', exportIndividualLedger); 
